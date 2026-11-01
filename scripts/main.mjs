@@ -44,7 +44,10 @@ export const API = {
   features: F
 };
 
-class HubMenu extends Hub.HubApp { }
+/** The settings menu entry: opens (or brings forward) the one hub window instead of a second copy with the same id. */
+class HubMenu extends foundry.applications.api.ApplicationV2 {
+  render() { Hub.open(); return this; }
+}
 
 Hooks.once("init", () => {
   F.registerSettings();
