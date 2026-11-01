@@ -37,11 +37,11 @@ export const API = {
   /** Update check (GM): check({ force }) → Map id → result; compare(a, b) → -1 / 0 / 1 / null. undefined when the feature is off. */
   get updates() { return F.on("updateCheck") ? { check: (/** @type {any} */ o = {}) => gmOnly(() => Hub.checkUpdates(o)), results: () => gmOnly(() => Hub.updateResults()), compare: V.compareVersions } : undefined; },
   /** Settings for all (GM): build() → bundle object, export() downloads it, import() opens the import window, read(text), apply(picks). */
-  get settings() { return F.on("sharedSettings") ? { build: () => gmOnly(() => SettingsIO.build().then(r => r.bundle)), export: () => gmOnly(() => SettingsIO.exportFile()), import: () => gmOnly(() => SettingsIO.openImport()), read: (/** @type {string} */ t) => gmOnly(() => SettingsIO.readText(t)), apply: (/** @type {any[]} */ p) => gmOnly(() => SettingsIO.apply(p)) } : undefined; },
+  get settings() { return F.on("sharedSettings") ? { build: () => gmOnly(() => SettingsIO.build().then(r => r.bundle)), export: () => gmOnly(() => SettingsIO.exportFile()), import: () => gmOnly(() => Hub.openImport()), read: (/** @type {string} */ t) => gmOnly(() => SettingsIO.readText(t)), apply: (/** @type {any[]} */ p) => gmOnly(() => SettingsIO.apply(p)) } : undefined; },
   /** Debug logging for all (GM): state() → { rows, state, missing }, set(on). */
   get debug() { return F.on("debugAll") ? { state: () => gmOnly(() => Hub.debugState()), set: (/** @type {boolean} */ on) => gmOnly(() => Hub.setDebugAll(on)) } : undefined; },
   /** Remove Satchel data (GM): plan(), remove(pick), open(). */
-  cleanup: { plan: () => gmOnly(() => Cleanup.plan()), remove: (/** @type {any} */ pick) => gmOnly(() => Cleanup.remove(pick)), open: () => gmOnly(() => new Cleanup.CleanupApp().render({ force: true })) },
+  cleanup: { plan: () => gmOnly(() => Cleanup.plan()), remove: (/** @type {any} */ pick) => gmOnly(() => Cleanup.remove(pick)), open: () => gmOnly(() => Hub.open("maintenance")) },
   get isReady() { return isReady; },
   /** Resolves with the api at our ready hook. */
   whenReady: () => readyPromise,

@@ -1,12 +1,13 @@
 /**
  * Settings export / import for every module in the Satchel (feature "sharedSettings"), GM only. Export writes one JSON file;
- * import reads it, shows what would change per module with a tick per setting, and writes only after the GM confirms.
+ * import reads it; the hub's Settings transfer page shows what would change per module with a tick per setting, and apply()
+ * writes only after the GM confirms.
  *
  * Per module: an entry with exportSettings() exports through it ("module"); otherwise the Satchel reads the module's registered
  * settings in its namespace ("settings", minus the entry's skip list). On import, an entry with importSettings { read, apply }
  * reads and writes through the module's own checks; otherwise the Satchel checks each value against the registered setting.
  */
-import { ID, TITLE, esc, plural } from "./const.mjs";
+import { ID, TITLE, plural } from "./const.mjs";
 import * as M from "./settings-model.mjs";
 import * as Reg from "./registry.mjs";
 import { getSetting as get, settingDefs } from "../vendor/wanderers-core/foundry/index.mjs";
@@ -90,7 +91,9 @@ export async function readText(text) {
         const d = defs(m.id); const cur = Object.fromEntries([...d.keys()].map(k => [k, get(m.id, k)]));
         r = M.readModuleSettings(m.id, m.data, d, cur, e?.skipSettings ?? [], e?.validators ?? {});
       }
-      out.push({ ...base, ok: !!r.ok, error: r.ok ? null : r.error ?? "couldn't read", rows: r.rows ?? [], unknown: r.unknown ?? [], skipped: r.skipped ?? [], invalid: r.invalid ?? [] });
+      const d = defs(m.id);
+      const rows = (r.rows ?? []).map((/** @type {any} */ x) => ({ ...x, reload: !!d.get(x?.key)?.requiresReload }));
+      out.push({ ...base, ok: !!r.ok, error: r.ok ? null : r.error ?? "couldn't read", rows, unknown: r.unknown ?? [], skipped: r.skipped ?? [], invalid: r.invalid ?? [] });
     } catch (err) { out.push({ ...base, ok: false, error: String(err?.message ?? err) }); }
   }
   return { ok: true, error: null, version: b.version, exported: b.exported, modules: out };
@@ -129,58 +132,21 @@ export async function apply(picks) {
   return { written, reload, failed };
 }
 
-/** @returns {Promise<string | null>} */
-function pickFile() {
+/**
+ * Asks the browser for a file: null when cancelled, else { name, size, text } or { name, size, error } (too large, unreadable).
+ * The hub shows the error inline on the Settings transfer page.
+ * @returns {Promise<{ name: string, size: number, text?: string, error?: string } | null>}
+ */
+export function pickFile() {
   return new Promise(resolve => {
     const input = document.createElement("input"); input.type = "file"; input.accept = ".json,application/json";
     input.addEventListener("change", async () => {
       const f = input.files?.[0]; if (!f) return resolve(null);
-      if (f.size > M.MAX_FILE) { ui.notifications.error(`${TITLE} settings import: the file is too large.`); return resolve(null); }
-      resolve(await f.text());
+      const base = { name: f.name, size: f.size };
+      if (f.size > M.MAX_FILE) return resolve({ ...base, error: `the file is too large (over ${Math.round(M.MAX_FILE / 1024 / 1024)} MB). Settings files are usually under 100 KB; check you picked a settings export, not a world backup.` });
+      try { resolve({ ...base, text: await f.text() }); } catch (err) { resolve({ ...base, error: `the file couldn't be read (${err?.message ?? err}).` }); }
     });
     input.addEventListener("cancel", () => resolve(null));
     input.click();
   });
-}
-
-/** GM: pick a file, preview, import after confirming. */
-export async function openImport() {
-  if (!game.user.isGM) return ui.notifications.warn("GM only.");
-  const text = await pickFile(); if (text == null) return null;
-  const r = await readText(text);
-  if (!r.ok) { ui.notifications.error(`${TITLE} settings import: ${r.error}.`); return null; }
-  await foundry.applications.instances?.get?.(`${ID}-import`)?.close();
-  return new ImportPreview(r).render({ force: true });
-}
-
-export class ImportPreview extends foundry.applications.api.ApplicationV2 {
-  static DEFAULT_OPTIONS = { id: `${ID}-import`, classes: ["ws-window"], window: { title: `${TITLE} · Import settings`, icon: "fa-solid fa-file-import", resizable: true }, position: { width: 720, height: 700 } };
-  constructor(result, opts = {}) { super(opts); this.result = result; }
-  async _renderHTML() {
-    const r = this.result; const div = document.createElement("div"); div.className = "ws-scroll";
-    const mod = (m, i) => {
-      const head = `<h3>${esc(m.title)} <span class="hint">${esc(m.id)}${m.version ? ` · file from ${esc(m.version)}` : ""}${m.how === "module" ? " · checked by the module's own import" : ""}</span></h3>`;
-      if (!m.ok) return `${head}<p class="ws-bad">Not imported: ${esc(m.error)}.</p>`;
-      const warn = [m.unknown.length ? `Not in this version, ignored: ${m.unknown.map(esc).join(", ")}.` : "", m.invalid.length ? `Values that don't fit, ignored: ${m.invalid.map(x => `${esc(x.key)} (${esc(x.reason)})`).join("; ")}.` : "", m.skipped.length ? `Records never imported: ${m.skipped.map(esc).join(", ")}.` : ""].filter(Boolean).map(t => `<p class="hint">${t}</p>`).join("");
-      const changed = m.rows.filter(x => x.changed).length;
-      return `${head}<p>${plural(changed, "setting")} would change.</p>${warn}${m.rows.length ? `<table class="ws-grid"><thead><tr><th></th><th>Setting</th><th>Now</th><th>From the file</th></tr></thead><tbody>${m.rows.map((x, j) => `<tr class="${x.changed ? "" : "ws-dim"}"><td><input type="checkbox" data-m="${i}" data-r="${j}" ${x.changed ? "checked" : ""}></td><td><strong>${esc(x.label)}</strong><br><span class="hint">${esc(x.key)}${x.note ? ` · ${esc(x.note)}` : ""}</span></td><td><code>${esc(M.preview(x.from))}</code></td><td><code>${esc(M.preview(x.to))}</code></td></tr>`).join("")}</tbody></table>` : ""}`;
-    };
-    div.innerHTML = `<p>Exported ${esc(r.exported || "at an unknown time")}${r.version ? ` by ${TITLE} ${esc(r.version)}` : ""}. Ticked settings are written when you press Import; nothing has changed yet.</p>${r.modules.map(mod).join("") || "<p>The file has no modules.</p>"}
-      <footer class="ws-footer"><button type="button" data-act="cancel"><i class="fa-solid fa-xmark"></i> Cancel</button><button type="button" data-act="import"><i class="fa-solid fa-file-import"></i> Import ticked settings</button></footer>`;
-    div.querySelector("[data-act=cancel]")?.addEventListener("click", () => this.close());
-    div.querySelector("[data-act=import]")?.addEventListener("click", async ev => {
-      if (!game.user?.isGM) return;
-      const picks = r.modules.map((/** @type {any} */ m, /** @type {number} */ i) => ({ id: m.id, how: m.how, rows: m.ok ? m.rows.filter((/** @type {any} */ _, /** @type {number} */ j) => (/** @type {HTMLInputElement | null} */ (div.querySelector(`input[data-m="${i}"][data-r="${j}"]`)))?.checked) : [] }));
-      const n = picks.reduce((t, p) => t + p.rows.length, 0);
-      if (!n) return ui.notifications.info(`${TITLE}: nothing ticked.`);
-      (/** @type {HTMLButtonElement} */ (ev.currentTarget)).disabled = true;
-      const res = await apply(picks);
-      await this.close();
-      ui.notifications.info(`${TITLE}: imported ${plural(res.written, "setting")}.`);
-      if (res.failed.length) ui.notifications.error(`${TITLE}: ${res.failed.join("; ")}`);
-      if (res.reload) foundry.applications.settings?.SettingsConfig?.reloadConfirm?.({ world: true });
-    });
-    return div;
-  }
-  _replaceHTML(result, content) { content.replaceChildren(result); }
 }

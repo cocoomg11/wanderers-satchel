@@ -71,6 +71,7 @@ export function openLink(url) {
 
 const apps = new Set();
 export const trackWindow = app => { apps.add(app); return () => apps.delete(app); };
-export function refreshWindows() { for (const a of apps) { try { if (a.rendered) a.render(); } catch { } } }
+/** Redraws every tracked window: its own refresh() when it has one (the hub keeps its page and scroll), else render(). */
+export function refreshWindows() { for (const a of apps) { try { if (a.rendered) { if (typeof a.refresh === "function") a.refresh(); else a.render(); } } catch { } } }
 
 export { R };

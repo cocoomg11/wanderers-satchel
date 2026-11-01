@@ -1,10 +1,10 @@
 /**
- * Remove Satchel data: a window (GM only) that counts what Wanderer's Satchel stored (a dry run), lets the GM tick what goes and
+ * Remove Satchel data (the hub's Maintenance page, GM only): counts what Wanderer's Satchel stored (a dry run), lets the GM tick what goes and
  * asks to type REMOVE. What the Satchel writes: its own settings (feature switches), `flags.wanderers-satchel` on chat messages (the
  * combined health card) and the update-check answers in this browser's session storage. Nothing of any other module is touched;
  * debug settings the "Debug logging for all" switch changed belong to those modules and are listed, not reset.
  */
-import { ID, TITLE, esc } from "./const.mjs";
+import { ID, TITLE } from "./const.mjs";
 import { createCache } from "./version-model.mjs";
 import { CONFIRM_WORD, confirmed, hasFlags } from "../vendor/wanderers-core/index.mjs";
 
@@ -46,32 +46,22 @@ export async function remove(pick = {}) {
   return done;
 }
 
-export class CleanupApp extends foundry.applications.api.ApplicationV2 {
-  static DEFAULT_OPTIONS = { id: `${ID}-cleanup`, classes: ["ws-window"], tag: "form", form: { closeOnSubmit: false }, window: { title: `${TITLE} · Remove Satchel data`, icon: "fa-solid fa-broom", resizable: true }, position: { width: 520, height: "auto" } };
-  async _renderHTML() {
-    const div = document.createElement("div");
-    if (!game.user.isGM) { div.textContent = "GM only."; return div; }
-    const p = plan();
-    div.innerHTML = `<p>Removes what ${TITLE} stored. The counts are what would go now (a dry run); nothing changes until you confirm. Other modules' settings and data are never touched, including debug settings the <em>Debug logging for all</em> switch turned on (turn them off from the hub first if you want).</p>
-      ${CATEGORIES.map(([k, label]) => `<div class="form-group"><label><input type="checkbox" name="${k}" ${k === "settings" ? "" : "checked"}> ${esc(label)}</label><span class="hint" style="margin-left:auto;">${/** @type {any} */ (p)[k].length}</span></div>`).join("")}
-      <p class="hint">Also left behind, documented in the README: the key binding (if you changed it, Foundry keeps it in its own key binding settings).</p>
-      <div class="form-group"><label for="ws-cleanup-confirm">Type <strong>REMOVE</strong> to confirm</label><div class="form-fields"><input type="text" id="ws-cleanup-confirm" name="confirm" autocomplete="off"></div></div>
-      <footer class="ws-footer"><button type="button" data-act="cancel"><i class="fa-solid fa-xmark"></i> Cancel</button><button type="submit"><i class="fa-solid fa-broom"></i> Remove</button></footer>`;
-    return div;
-  }
-  _replaceHTML(result, content) {
-    content.replaceChildren(result);
-    const form = this.element;
-    form.querySelector("[data-act=cancel]")?.addEventListener("click", ev => { ev.preventDefault(); this.close(); });
-    form.onsubmit = async ev => {
-      ev.preventDefault();
-      if (!confirmed(form.elements.confirm?.value)) return ui.notifications.warn(`${TITLE}: type ${CONFIRM_WORD} to confirm.`);
-      const pick = Object.fromEntries(CATEGORIES.map(([k]) => [k, !!form.elements[k]?.checked]));
-      if (!Object.values(pick).some(Boolean)) return ui.notifications.info(`${TITLE}: nothing ticked.`);
-      const done = await remove(pick); await this.close(); if (!done) return;
-      const label = Object.fromEntries(CATEGORIES);
-      ui.notifications.info(`${TITLE} data removed: ${Object.entries(done).map(([k, n]) => `${label[k].replace(/ \(.*\)$/, "")}: ${n}`).join("; ") || "nothing"}.`);
-      if (done.settings) foundry.applications.settings?.SettingsConfig?.reloadConfirm?.({ world: true });
-    };
-  }
+/**
+ * Carries out a Remove Satchel data form (the hub's Maintenance page): checks the confirm word, removes the ticked categories,
+ * reports. Returns { ok, error?, done? }; an error is shown inline on the page.
+ * @param {{ confirm: string, pick: Record<string, boolean> }} input
+ */
+export async function submit({ confirm, pick }) {
+  if (!game.user?.isGM) return { ok: false, error: "GM only." };
+  if (!confirmed(confirm)) return { ok: false, error: `Type ${CONFIRM_WORD} to confirm.` };
+  if (!Object.values(pick).some(Boolean)) return { ok: false, error: "Nothing ticked." };
+  const done = await remove(pick); if (!done) return { ok: false, error: "Nothing was removed." };
+  const label = Object.fromEntries(CATEGORIES);
+  ui.notifications.info(`${TITLE} data removed: ${Object.entries(done).map(([k, n]) => `${label[k].replace(/ \(.*\)$/, "")}: ${n}`).join("; ") || "nothing"}.`);
+  if (done.settings) foundry.applications.settings?.SettingsConfig?.reloadConfirm?.({ world: true });
+  return { ok: true, done };
 }
+
+/** The dry-run counts per category. */
+export const counts = () => { const p = /** @type {any} */ (plan()); return Object.fromEntries(CATEGORIES.map(([k]) => [k, p[k].length])); };
+export { CONFIRM_WORD };

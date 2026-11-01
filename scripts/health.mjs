@@ -8,9 +8,18 @@ import * as H from "./health-model.mjs";
 import { dependencyLines } from "./adapters-model.mjs";
 import * as Reg from "./registry.mjs";
 import { log } from "./core.mjs";
+import { icon, badge, groupSections } from "./hub-view.mjs";
 
 /** Per module, for this page load: how long its last answer took (the next limit is based on it). */
 const lastMs = new Map();
+/** Per module, its latest result from any run in this page load: id → { result, at }. The hub draws its status dots from it. */
+const latestResults = new Map();
+/** @type {Set<() => void>} */
+const listeners = new Set();
+/** Called (with no arguments) whenever any module's result changes. Returns the unsubscribe function. @param {() => void} fn */
+export const onResult = fn => { listeners.add(fn); return () => listeners.delete(fn); };
+/** A copy of the latest results: Map id → { result, at }. */
+export const latest = () => new Map(latestResults);
 /** For tests and the README: the limits in use. */
 export const LIMITS = { slowMs: H.SLOW_MS, firstRunMs: H.FIRST_RUN_MS, baseMs: H.BASE_MS, maxMs: H.MAX_MS };
 
@@ -54,7 +63,12 @@ export async function checkOne(e, { limitMs = H.FIRST_RUN_MS } = {}) {
 export function start(ids = null, onChange) {
   if (!game.user?.isGM) return null;
   const list = Reg.entries().filter(e => !ids || ids.includes(e.id)).map(e => ({ ...e, title: e.title || Reg.moduleInfo(e.id)?.title || e.id }));
-  return H.runChecks(list, checkOne, { timeoutFor, onChange });
+  const changed = (/** @type {number} */ i, /** @type {any} */ r) => {
+    latestResults.set(r.id, { result: r, at: Date.now() });
+    try { onChange?.(i, r); } catch { }
+    for (const fn of listeners) { try { fn(); } catch { } }
+  };
+  return H.runChecks(list, checkOne, { timeoutFor, onChange: changed });
 }
 
 /**
@@ -66,19 +80,24 @@ export async function run(ids = null) {
   return H.groupHealth(await r.done);
 }
 
-/** @type {Record<string, string>} */
-const ICON = { ok: "✓", warn: "⚠", bad: "✗", off: "·", info: "i" };
+/** The summary as count badges. @param {any} s */
+export function summaryHtml(s) {
+  const b = (/** @type {string} */ lv, /** @type {string} */ t) => badge(lv, t, { icon: true });
+  const extra = [s.waiting ? b("pending", `${s.waiting} still checking`) : "", s.failed ? b("bad", `${s.failed} failed`) : "", s.none ? b("off", `${s.none} without a check`) : "", s.inactive ? b("off", `${s.inactive} not active`) : ""].join("");
+  return `<span class="ws-summary-text">${s.modules} module${s.modules === 1 ? "" : "s"}</span>${b("ok", `${s.ok} ok`)}${b("warn", `${s.warn} warning${s.warn === 1 ? "" : "s"}`)}${b("bad", `${s.bad} problem${s.bad === 1 ? "" : "s"}`)}${extra}`;
+}
+
 /**
  * The grouped report as HTML (every value escaped).
  * @param {any} g
  */
 export function html(g) {
-  const body = g.groups.map((/** @type {any} */ x) => `<section class="ws-health-group ws-${x.worst}"><h3>${esc(x.title)} <span class="ws-counts">${x.state === "pending" || x.state === "slow" ? "<i class=\"fa-solid fa-spinner fa-spin\"></i>" : `${x.counts.ok} ✓ · ${x.counts.warn} ⚠ · ${x.counts.bad} ✗`}</span></h3>${x.note ? `<p class="hint">${esc(x.note)}</p>` : ""}${x.sections.map((/** @type {any} */ s) => `${s.title ? `<h4>${esc(s.title)}</h4>` : ""}<ul class="ws-lines">${s.lines.map((/** @type {any} */ l) => `<li class="ws-${l.level}"><span class="ws-icon">${ICON[l.level] ?? ""}</span>${esc(l.text)}</li>`).join("")}</ul>`).join("")}</section>`).join("");
-  return `<div class="ws-health"><p class="ws-summary ws-${g.summary.worst}"><strong>${esc(H.summaryText(g.summary))}</strong></p>${body || "<p>No modules to check.</p>"}</div>`;
+  const body = g.groups.map((/** @type {any} */ x) => `<section class="ws-health-group" aria-label="${esc(x.title)}"><h3>${icon(x.state === "pending" || x.state === "slow" ? "pending" : x.worst)}<span class="ws-grow">${esc(x.title)}</span><span class="ws-counts">${x.state === "pending" || x.state === "slow" ? "" : `${x.counts.ok} ok · ${x.counts.warn} warn · ${x.counts.bad} bad`}</span></h3>${x.note ? `<p class="hint">${esc(x.note)}</p>` : ""}${groupSections(x)}</section>`).join("");
+  return `<div class="ws-health"><p class="ws-summary" title="${esc(H.summaryText(g.summary))}">${summaryHtml(g.summary)}</p>${body || "<p>No modules to check.</p>"}</div>`;
 }
 
 export class HealthApp extends foundry.applications.api.ApplicationV2 {
-  static DEFAULT_OPTIONS = { id: `${ID}-health`, classes: ["ws-window"], window: { title: `${TITLE} · Health check`, icon: "fa-solid fa-stethoscope", resizable: true }, position: { width: 600, height: 680 } };
+  static DEFAULT_OPTIONS = { id: `${ID}-health`, classes: ["ws-window", "ws-health-window"], window: { title: `${TITLE} · Health check`, icon: "fa-solid fa-stethoscope", resizable: true }, position: { width: 600, height: 680 } };
   /** @param {any} [opts] */
   constructor(opts = {}) { super(opts); this.ids = opts.ids ?? null; /** @type {any} */ this.job = null; /** @type {HTMLElement | null} */ this.box = null; }
   async _renderHTML() {

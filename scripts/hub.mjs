@@ -1,14 +1,23 @@
 /**
- * The hub window (GM only): one card per module with its version, active state, update check and buttons; the shared jobs on top.
- * HTML is built in code (no templates). Update checks start after the first draw and fill in as they answer.
+ * The hub window (GM only), a page router with a sidebar: Overview; one page per module (status dot from its last health check,
+ * warning count); Tools: Health check, Settings transfer (Export / Import tabs), Maintenance (Remove Satchel data). Pages and their
+ * models live in hub-model.mjs (router, view models) and hub-view.mjs (HTML), both pure. HTML is built in code (no templates);
+ * clicks go through ApplicationV2 `actions`. Update checks start after the first draw and fill in as they answer; health results
+ * from any run (this window, a module page, the separate health window) update the dots as they come in.
  */
-import { ID, TITLE, esc } from "./const.mjs";
+import { ID, TITLE, esc, plural } from "./const.mjs";
+import * as H from "./health-model.mjs";
 import * as F from "./features.mjs";
 import * as V from "./version-model.mjs";
 import * as Reg from "./registry.mjs";
 import * as SettingsIO from "./settings-io.mjs";
-import { HealthApp } from "./health.mjs";
-import { CleanupApp, cache } from "./cleanup.mjs";
+import * as Health from "./health.mjs";
+import * as Cleanup from "./cleanup.mjs";
+import * as HM from "./hub-model.mjs";
+import * as View from "./hub-view.mjs";
+import { log } from "./core.mjs";
+
+const { cache } = Cleanup;
 
 /** @type {Map<string, any>} */
 const updates = new Map(); // id → result (this page load); the session cache keeps them across reloads
@@ -60,92 +69,273 @@ export async function setDebugAll(on) {
 }
 
 // ---------------------------------------------------------------- the window
-/** @type {Record<string, string>} */
-const UPDATE_CLASS = { update: "ws-warn", current: "ws-ok", ahead: "ws-info", error: "ws-bad", unknown: "ws-off" };
+const safe = (/** @type {() => unknown} */ fn) => { try { return !!fn(); } catch { return false; } };
+const features = () => ({ updateCheck: F.on("updateCheck"), combinedHealth: F.on("combinedHealth"), sharedSettings: F.on("sharedSettings"), debugAll: F.on("debugAll") });
+const NO_DEBUG = { rows: [], state: "none", missing: [] };
 
-/** @param {any} e @param {any} dbg */
-function card(e, dbg) {
-  const m = Reg.moduleInfo(e.id);
-  const c = Reg.R.cardModel(e, m, updates.get(e.id) ?? null);
-  const state = !c.installed ? `<span class="ws-tag ws-bad">not installed</span>` : c.active ? `<span class="ws-tag ws-ok">active</span>` : `<span class="ws-tag ws-off">not active</span>`;
-  const src = c.source === "registered" ? `<span class="ws-tag" title="This module registered itself with the Satchel.">registered</span>` : `<span class="ws-tag" title="Built-in adapter: uses what the module exposes today.">built-in${c.provisional ? ", provisional" : ""}</span>`;
-  const upd = !c.installed ? "" : !F.on("updateCheck") ? "" : `<p class="ws-update ${UPDATE_CLASS[c.update?.status] ?? ""}">${esc(c.update ? V.updateText(c.update) : "Checking for updates…")}</p>`;
-  const dbgRow = dbg.rows.find(r => r.id === e.id);
-  const btn = (act, icon, label, ok, title = "") => `<button type="button" data-act="${act}" data-id="${esc(e.id)}" ${ok ? "" : "disabled"} ${title ? `title="${esc(title)}"` : ""}><i class="${icon}"></i> ${esc(label)}</button>`;
-  const extras = (e.extraActions ?? []).map((x, i) => (x.available ? safe(x.available) : true) && c.active ? `<button type="button" data-act="extra" data-id="${esc(e.id)}" data-i="${i}"><i class="${esc(x.icon ?? "fa-solid fa-wand-magic")}"></i> ${esc(x.label)}</button>` : "").join("");
-  return `<article class="ws-card" data-id="${esc(e.id)}">
-    <header><h3>${esc(c.title)}</h3><span class="ws-version">${c.version ? esc(c.version) : ""}</span>${state}${src}</header>
-    ${upd}
-    ${F.on("debugAll") && c.active ? `<p class="hint">Debug logging: ${dbgRow ? (dbgRow.on ? "on" : "off") : dbg.missing.includes(e.id) ? "this version has no debug logging setting" : "none"}</p>` : ""}
-    <div class="ws-buttons">
-      ${btn("panel", "fa-solid fa-sliders", "Open control panel", c.can.panel)}
-      ${F.on("combinedHealth") ? btn("health", "fa-solid fa-stethoscope", "Health", c.can.health || (c.active && !!(m?.relationships?.requires?.size ?? m?.relationships?.requires?.length)), c.can.health ? "" : "This module has no health check; dependencies only.") : ""}
-      ${btn("docs", "fa-solid fa-book", "Docs", c.can.docs)}
-      ${c.docs.changelog ? btn("changelog", "fa-solid fa-list", "Changelog", true) : ""}
-      ${btn("bugs", "fa-solid fa-bug", "Report issue", c.can.bugs)}
-      ${extras}
-    </div>
-  </article>`;
+/** The live data every page draws from. */
+function snapshot() {
+  const list = Reg.entries();
+  const items = list.map((/** @type {any} */ e) => Reg.R.cardModel(e, Reg.moduleInfo(e.id), updates.get(e.id) ?? null));
+  return { list, items, health: HM.healthIndex(Health.latest()), features: features(), debug: F.on("debugAll") ? debugState() : NO_DEBUG, now: Date.now() };
 }
-const safe = fn => { try { return !!fn(); } catch { return false; } };
 
 export class HubApp extends foundry.applications.api.ApplicationV2 {
-  static DEFAULT_OPTIONS = { id: `${ID}-hub`, classes: ["ws-window", "ws-hub"], window: { title: TITLE, icon: "fa-solid fa-bag-shopping", resizable: true }, position: { width: 640, height: 720 } };
-  constructor(opts = {}) { super(opts); this._untrack = Reg.trackWindow(this); }
-  async close(opts) { this._untrack?.(); return super.close(opts); }
-  async _renderHTML() {
-    const div = document.createElement("div"); div.className = "ws-scroll";
-    if (!game.user.isGM) { div.textContent = "GM only."; return div; }
-    const list = Reg.entries();
-    const dbg = F.on("debugAll") ? debugState() : { rows: [], state: "none", missing: [] };
-    const jobs = [
-      F.on("combinedHealth") ? `<button type="button" data-act="health-all"><i class="fa-solid fa-stethoscope"></i> Check everything</button>` : "",
-      F.on("sharedSettings") ? `<button type="button" data-act="export"><i class="fa-solid fa-file-export"></i> Export all settings</button><button type="button" data-act="import"><i class="fa-solid fa-file-import"></i> Import settings…</button>` : "",
-      F.on("updateCheck") ? `<button type="button" data-act="recheck"><i class="fa-solid fa-rotate"></i> Check for updates</button>` : "",
-      `<button type="button" data-act="cleanup"><i class="fa-solid fa-broom"></i> Remove Satchel data…</button>`
-    ].join("");
-    const debug = F.on("debugAll") && dbg.rows.length ? `<label class="ws-debug"><input type="checkbox" data-act="debug" ${dbg.state === "on" ? "checked" : ""}> Debug logging for all <span class="hint">(${dbg.state === "mixed" ? "some on" : dbg.state}: ${dbg.rows.map(r => esc(r.title)).join(", ")})</span></label>` : "";
-    div.innerHTML = `<section class="ws-jobs">${jobs}${debug}</section>
-      ${list.length ? list.map(e => card(e, dbg)).join("") : `<p>None of the known modules is installed, and no module has registered with the Satchel.</p>`}
-      <p class="hint">Each module keeps its own settings and windows; the Satchel only opens them. Other modules can join with <code>game.modules.get("${ID}").api.register({ id })</code>.</p>`;
-    div.addEventListener("click", ev => this.#onClick(ev));
-    div.querySelector("[data-act=debug]")?.addEventListener("change", async ev => {
-      const on = !!(/** @type {HTMLInputElement} */ (ev.currentTarget)).checked;
-      const n = await setDebugAll(on);
-      ui.notifications.info(`${TITLE}: debug logging ${on ? "on" : "off"} (${n} changed).`);
-    });
-    if (F.on("updateCheck") && list.some(e => !updates.has(e.id) && Reg.moduleInfo(e.id))) checkUpdates();
-    return div;
-  }
-  _replaceHTML(result, content) { content.replaceChildren(result); }
-
-  /** @param {any} ev */
-  async #onClick(ev) {
-    if (!game.user?.isGM) return;
-    const b = ev.target.closest("button[data-act]"); if (!b) return;
-    const act = b.dataset.act; const id = b.dataset.id;
-    const docs = Reg.R.docLinks(id ? Reg.moduleInfo(id) ?? { id } : {}, id ? Reg.entry(id)?.docs : {});
-    switch (act) {
-      case "panel": return Reg.openPanel(id);
-      case "health": return new HealthApp({ ids: [id], id: `${ID}-health-${id}` }).render({ force: true });
-      case "health-all": return new HealthApp().render({ force: true });
-      case "docs": return Reg.openLink(docs.readme ?? docs.home ?? docs.changelog);
-      case "changelog": return Reg.openLink(docs.changelog);
-      case "bugs": return Reg.openLink(docs.bugs);
-      case "extra": { const x = Reg.entry(id)?.extraActions?.[Number(b.dataset.i)]; try { return await x?.run?.(); } catch (e) { ui.notifications.error(`${TITLE}: ${e?.message ?? e}`); } return; }
-      case "export": return SettingsIO.exportFile();
-      case "import": return SettingsIO.openImport();
-      case "recheck": updates.clear(); this.render(); return checkUpdates({ force: true });
-      case "cleanup": return new CleanupApp().render({ force: true });
+  static DEFAULT_OPTIONS = {
+    id: `${ID}-hub`, classes: ["ws-window", "ws-hub"],
+    window: { title: TITLE, icon: "fa-solid fa-bag-shopping", resizable: true },
+    position: { width: 1000, height: 720 },
+    actions: {
+      nav: HubApp.#onNav, panel: HubApp.#onPanel, docs: HubApp.#onLink, changelog: HubApp.#onLink, bugs: HubApp.#onLink, extra: HubApp.#onExtra,
+      recheckUpdates: HubApp.#onRecheck, checkAll: HubApp.#onCheckAll, healthOne: HubApp.#onHealthOne, healthAgain: HubApp.#onCheckAll, healthPost: HubApp.#onPost,
+      export: HubApp.#onExport, pickImport: HubApp.#onPickImport, doImport: HubApp.#onImport, cancelImport: HubApp.#onCancelImport, removeData: HubApp.#onRemove
     }
+  };
+  /** Foundry's tab groups (Settings transfer: Export / Import). */
+  static TABS = { transfer: { tabs: [{ id: "export", label: "Export" }, { id: "import", label: "Import" }], initial: "export" } };
+
+  /** @param {any} [opts] */
+  constructor(opts = {}) {
+    super(opts);
+    this.router = HM.createRouter(() => ({ ids: Reg.entries().map((/** @type {any} */ e) => e.id), features: features() }), opts.page ?? "overview");
+    this.tabGroups = { transfer: "export" };
+    /** Health page run (started on first visit, Check again restarts). @type {any} */
+    this.healthJob = null;
+    /** Import state: file, readText result, ticks, last file error. @type {{ file: any, result: any, ticks: Set<string>, error: any }} */
+    this.imp = { file: null, result: null, ticks: new Set(), error: null };
+    this._untrack = Reg.trackWindow(this);
+    this._unlisten = Health.onResult(() => this.refresh());
+    /** @type {any} */ this._timer = null;
+  }
+  async close(opts) { this._untrack?.(); this._unlisten?.(); clearTimeout(this._timer); return super.close(opts); }
+
+  /** Shows a page ("overview", "module:<id>", "health", "transfer", "maintenance"). @param {string} page */
+  go(page) {
+    const changed = this.router.go(page);
+    if (this.router.page === "health" && !this.healthJob) this.healthJob = Health.start(null, () => this.refresh());
+    if (changed && this.rendered) this.render();
+    return this.router.page;
+  }
+
+  async _renderHTML() {
+    const root = document.createElement("div"); root.className = "ws-shell";
+    if (!game.user.isGM) { root.textContent = "GM only."; return root; }
+    this.router.refresh();
+    if (this.router.page === "health" && !this.healthJob) this.healthJob = Health.start(null, () => this.refresh());
+    const d = snapshot();
+    root.innerHTML = `${this.#nav(d)}<main class="ws-main" tabindex="-1" aria-label="${esc(this.#pageTitle(d))}">${this.#page(d)}</main>`;
+    if (d.features.updateCheck && d.list.some((/** @type {any} */ e) => !updates.has(e.id) && Reg.moduleInfo(e.id))) checkUpdates();
+    return root;
+  }
+  /** @param {any} result @param {HTMLElement} content */
+  _replaceHTML(result, content) {
+    const top = content.querySelector(".ws-main")?.scrollTop ?? 0;
+    const same = this._lastPage === this.router.page; this._lastPage = this.router.page;
+    content.replaceChildren(result);
+    const main = /** @type {HTMLElement | null} */ (content.querySelector(".ws-main"));
+    if (main && same) main.scrollTop = top;
+    this.#fillHealth();
+  }
+  /** @param {any} context @param {any} options */
+  async _onFirstRender(context, options) {
+    await super._onFirstRender?.(context, options);
+    const el = this.element;
+    el.addEventListener("change", (/** @type {Event} */ ev) => this.#onChange(ev));
+    el.addEventListener("keydown", (/** @type {KeyboardEvent} */ ev) => this.#onKey(ev));
+  }
+
+  /**
+   * Redraws in place after new data (update answers, health results, a registration): the sidebar always, the page unless it is
+   * Maintenance (a half-typed confirm word is kept). Batched, keeps the scroll position.
+   */
+  refresh() {
+    if (this._timer) return;
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      if (!this.rendered || !game.user?.isGM) return;
+      if (this.router.refresh()) { this.render(); return; }
+      const d = snapshot(); const el = this.element;
+      const nav = el.querySelector(".ws-side"); const focused = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.(".ws-nav") ? /** @type {HTMLElement} */ (document.activeElement).dataset.page : null;
+      if (nav) { nav.outerHTML = this.#nav(d); if (focused) /** @type {HTMLElement | null} */ (el.querySelector(`.ws-nav[data-page="${CSS.escape(focused)}"]`))?.focus(); }
+      const main = /** @type {HTMLElement | null} */ (el.querySelector(".ws-main"));
+      if (!main) return;
+      if (this.router.page === "health") { this.#fillHealth(); return; }
+      if (this.router.page === "maintenance" || this.router.page === "transfer") return;
+      const top = main.scrollTop; main.innerHTML = this.#page(d); main.scrollTop = top;
+    }, 60);
+  }
+
+  /** @param {any} d */
+  #nav(d) {
+    return View.navHtml(HM.navModel({ items: d.items, health: d.health, features: d.features, version: game.modules.get(ID)?.version ?? "", page: this.router.page }));
+  }
+  /** @param {any} d */
+  #pageTitle(d) {
+    const p = HM.parsePage(this.router.page);
+    if (p.kind === "module") return d.items.find((/** @type {any} */ x) => x.id === p.id)?.title ?? p.id ?? "";
+    return { overview: "Overview", health: "Health check", transfer: "Settings transfer", maintenance: "Maintenance" }[p.kind] ?? "";
+  }
+  /** @param {any} d */
+  #page(d) {
+    const p = HM.parsePage(this.router.page);
+    switch (p.kind) {
+      case "module": {
+        const item = d.items.find((/** @type {any} */ x) => x.id === p.id); const entry = d.list.find((/** @type {any} */ x) => x.id === p.id);
+        if (!item) return "";
+        const extras = (entry.extraActions ?? []).map((/** @type {any} */ x, /** @type {number} */ i) => ({ i, label: x.label, icon: x.icon ?? "fa-solid fa-wand-magic", ok: x.available ? safe(x.available) : true })).filter((/** @type {any} */ x) => x.ok);
+        return View.moduleHtml(HM.moduleModel({ item, entry, update: updates.get(item.id) ?? null, health: d.health.get(item.id) ?? null, features: d.features, debug: d.debug, extras, now: d.now }));
+      }
+      case "health": return View.healthPageHtml();
+      case "transfer": return View.transferHtml({ tab: this.tabGroups.transfer ?? "export", error: this.imp.error, file: this.imp.file, result: this.imp.result, model: this.imp.result ? HM.importModel(this.imp.result, this.imp.ticks) : null });
+      case "maintenance": return View.maintenanceHtml(Cleanup.counts(), /** @type {[string, string][]} */ (Cleanup.CATEGORIES), Cleanup.CONFIRM_WORD);
+      default: return View.overviewHtml(HM.overviewModel({ items: d.items, updates, health: d.health, features: d.features, debug: d.debug, now: d.now }), { updateCheck: d.features.updateCheck, combinedHealth: d.features.combinedHealth, id: ID });
+    }
+  }
+  #fillHealth() {
+    const box = this.element?.querySelector?.(".ws-health-box");
+    if (box && this.healthJob) box.innerHTML = Health.html(H.groupHealth(this.healthJob.results));
+  }
+
+  /** Foundry's tab switch, plus aria-selected. @param {string} tab @param {string} group @param {any} [options] */
+  changeTab(tab, group, options = {}) {
+    super.changeTab(tab, group, options);
+    for (const b of this.element.querySelectorAll(`[data-action="tab"][data-group="${group}"]`)) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+  }
+
+  // ------------------------------------------------------------ events
+  /** @param {Event} ev */
+  async #onChange(ev) {
+    const t = /** @type {HTMLInputElement} */ (ev.target); const kind = t?.dataset?.change; if (!kind || !game.user?.isGM) return;
+    if (kind === "debugAll") { const n = await setDebugAll(t.checked); ui.notifications.info(`${TITLE}: debug logging ${t.checked ? "on" : "off"} (${n} changed).`); return; }
+    if (kind === "debugOne") {
+      const r = debugState().rows.find((/** @type {any} */ x) => x.id === t.dataset.id); if (!r) return;
+      try { await game.settings.set(r.namespace, r.key, t.checked); log(`debug ${r.id} ${t.checked}`); } catch (e) { console.warn(`${ID} | debug ${r.id}`, e); }
+      this.refresh(); return;
+    }
+    if (kind === "tick") {
+      const k = HM.tickKey(Number(t.dataset.m), Number(t.dataset.r));
+      if (t.checked) this.imp.ticks.add(k); else this.imp.ticks.delete(k);
+      const model = HM.importModel(this.imp.result, this.imp.ticks); const el = this.element;
+      const facts = el.querySelector("[data-part=facts]"); if (facts) facts.innerHTML = View.factsHtml(model);
+      const foot = el.querySelector("[data-part=footer]"); if (foot) foot.innerHTML = View.footerHtml(model);
+      const m = model.modules[Number(t.dataset.m)]; const b = el.querySelector(`[data-part="badges-${t.dataset.m}"]`);
+      if (m && b) b.innerHTML = m.badges.map((/** @type {any} */ x) => View.badge(x.level, x.text)).join("");
+    }
+  }
+  /** Sidebar: arrow keys, Home, End move between links (roving focus). @param {KeyboardEvent} ev */
+  #onKey(ev) {
+    const t = /** @type {HTMLElement} */ (ev.target); if (!t?.classList?.contains("ws-nav")) return;
+    const links = [...this.element.querySelectorAll(".ws-side .ws-nav")].map(x => /** @type {HTMLElement} */ (x));
+    const next = HM.moveFocus(links.map(x => x.dataset.page ?? ""), t.dataset.page ?? "", ev.key); if (!next) return;
+    ev.preventDefault();
+    const to = links.find(x => x.dataset.page === next); if (!to) return;
+    for (const x of links) x.tabIndex = x === to ? 0 : -1;
+    to.focus();
+  }
+
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static #onNav(_ev, target) {
+    if (!game.user?.isGM) return;
+    this.go(target.dataset.page ?? "overview");
+    /** @type {HTMLElement | null} */ (this.element.querySelector(".ws-main"))?.focus({ preventScroll: true });
+  }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static #onPanel(_ev, target) { if (game.user?.isGM) Reg.openPanel(target.dataset.id); }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static #onLink(_ev, target) {
+    if (!game.user?.isGM) return;
+    const id = target.dataset.id ?? ""; const docs = Reg.R.docLinks(Reg.moduleInfo(id) ?? { id }, Reg.entry(id)?.docs);
+    const act = target.dataset.action;
+    Reg.openLink(act === "bugs" ? docs.bugs : act === "changelog" ? docs.changelog : docs.readme ?? docs.home ?? docs.changelog);
+  }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static async #onExtra(_ev, target) {
+    if (!game.user?.isGM) return;
+    const x = Reg.entry(target.dataset.id ?? "")?.extraActions?.[Number(target.dataset.i)];
+    try { await x?.run?.(); } catch (e) { ui.notifications.error(`${TITLE}: ${e?.message ?? e}`); }
+  }
+  /** @this {HubApp} */
+  static #onRecheck() { if (!game.user?.isGM) return; updates.clear(); this.refresh(); checkUpdates({ force: true }); }
+  /** @this {HubApp} */
+  static #onCheckAll() {
+    if (!game.user?.isGM || !F.on("combinedHealth")) return;
+    this.healthJob = Health.start(null, () => this.refresh());
+    if (this.router.page === "health") this.#fillHealth(); else this.go("health");
+  }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static #onHealthOne(_ev, target) { if (game.user?.isGM && F.on("combinedHealth")) { Health.start([target.dataset.id ?? ""]); this.refresh(); } }
+  /** @this {HubApp} */
+  static #onPost() {
+    if (!game.user?.isGM || !this.healthJob) return;
+    ChatMessage.create({ content: Health.html(H.groupHealth(this.healthJob.results)), whisper: game.users.filter((/** @type {any} */ u) => u.isGM).map((/** @type {any} */ u) => u.id), speaker: { alias: TITLE }, flags: { [ID]: { health: true } } });
+  }
+  /** @this {HubApp} */
+  static #onExport() { if (game.user?.isGM && F.on("sharedSettings")) SettingsIO.exportFile(); }
+  /** @this {HubApp} */
+  static #onPickImport() { if (game.user?.isGM) this.pickImport(); }
+  /** @this {HubApp} */
+  static #onCancelImport() { this.imp = { file: null, result: null, ticks: new Set(), error: null }; this.render(); }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static async #onImport(_ev, target) {
+    if (!game.user?.isGM || !this.imp.result) return;
+    const r = this.imp.result;
+    const picks = r.modules.map((/** @type {any} */ m, /** @type {number} */ i) => ({ id: m.id, how: m.how, rows: m.ok ? m.rows.filter((/** @type {any} */ _, /** @type {number} */ j) => this.imp.ticks.has(HM.tickKey(i, j))) : [] }));
+    const n = picks.reduce((/** @type {number} */ t, /** @type {any} */ p) => t + p.rows.length, 0);
+    if (!n) return ui.notifications.info(`${TITLE}: nothing ticked.`);
+    /** @type {HTMLButtonElement} */ (target).disabled = true;
+    const res = await SettingsIO.apply(picks);
+    this.imp = { file: null, result: null, ticks: new Set(), error: null };
+    this.render();
+    ui.notifications.info(`${TITLE}: imported ${plural(res.written, "setting")}.`);
+    if (res.failed.length) ui.notifications.error(`${TITLE}: ${res.failed.join("; ")}`);
+    if (res.reload) foundry.applications.settings?.SettingsConfig?.reloadConfirm?.({ world: true });
+  }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static async #onRemove(_ev, target) {
+    if (!game.user?.isGM) return;
+    const form = /** @type {HTMLFormElement | null} */ (target.closest("form")); if (!form) return;
+    const el = /** @type {any} */ (form.elements);
+    const pick = Object.fromEntries(Cleanup.CATEGORIES.map(([k]) => [k, !!el[k]?.checked]));
+    const r = await Cleanup.submit({ confirm: el.confirm?.value ?? "", pick });
+    const box = /** @type {HTMLElement | null} */ (form.querySelector("[data-part=cleanup-error]"));
+    if (!r.ok) { if (box) { box.textContent = r.error ?? ""; box.hidden = false; } return; }
+    this.render();
+  }
+
+  /** Settings transfer → Import: pick a file, read it, show the preview here (file errors inline). */
+  async pickImport() {
+    if (!game.user?.isGM) return null;
+    this.tabGroups.transfer = "import";
+    if (this.router.page !== "transfer") this.go("transfer"); else this.render();
+    const f = await SettingsIO.pickFile(); if (!f) return null;
+    if (f.error || f.text == null) return this.#fileError(f.name, f.error ?? "the file couldn't be read.");
+    const r = await SettingsIO.readText(f.text);
+    if (!r.ok) return this.#fileError(f.name, `${r.error}.`);
+    this.imp = { file: { name: f.name, size: f.size }, result: r, ticks: HM.initialTicks(r), error: null };
+    this.tabGroups.transfer = "import";
+    await this.render({ force: true });
+    return r;
+  }
+  /** @param {string} name @param {string} text */
+  #fileError(name, text) {
+    this.imp.error = { name, text };
+    ui.notifications.error(`${TITLE} settings import: ${text}`);
+    this.render();
+    return null;
   }
 }
 
-/** Opens the hub (or brings it to the front). */
-export function open() {
+/** Opens the hub on a page (default: Overview), or brings it to the front and shows that page. @param {string} [page] */
+export function open(page = "overview") {
   if (!game.user?.isGM) return ui.notifications.warn("GM only.");
-  const existing = foundry.applications.instances?.get?.(`${ID}-hub`);
-  if (existing) { existing.render({ force: true }); existing.bringToFront?.(); return existing; }
-  return new HubApp().render({ force: true });
+  const existing = /** @type {HubApp | undefined} */ (foundry.applications.instances?.get?.(`${ID}-hub`));
+  if (existing) { existing.go(page); existing.render({ force: true }); existing.bringToFront?.(); return existing; }
+  return new HubApp({ page }).render({ force: true });
+}
+/** GM: opens the hub on Settings transfer → Import and asks for a file (api.settings.import()). */
+export async function openImport() {
+  if (!game.user?.isGM) return ui.notifications.warn("GM only.");
+  const app = /** @type {HubApp} */ (await open("transfer"));
+  return app?.pickImport?.() ?? null;
 }
 export const updateResults = () => new Map(updates);
