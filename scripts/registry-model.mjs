@@ -6,12 +6,13 @@
  *          debugSetting?: { namespace, key }, docs?: { url, readme, changelog, bugs }, skipSettings: [key], validators?: { key: fn },
  *          healthTimeoutMs?: number, fixes?: { actionId: fn }, notes: [text] }
  */
+import { FIX_ACTION_RE } from "../vendor/wanderers-core/index.mjs";
 
 const FN_FIELDS = ["openPanel", "health", "exportSettings"];
 const ID_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 const DOC_KEYS = ["url", "readme", "changelog", "bugs"];
-/** A fix action id (health lines name one with `fix: "id"` or `fix: { label, action: "id" }`). "satchel:" ids are the Satchel's own. */
-export const FIX_ID = /^[A-Za-z0-9_.:-]{1,64}$/;
+/** A fix action id (health lines name one with `fix: "id"` or `fix: { label, action: "id" }`): core's `FIX_ACTION_RE` (0.6.0). "satchel:" ids are the Satchel's own. */
+export const FIX_ID = FIX_ACTION_RE;
 
 /**
  * Reads what a module passed to api.register(): { ok, entry, error, warnings }. Unknown fields and wrong types are dropped with a

@@ -8,7 +8,7 @@
  * own: one slow or hung check never holds the others up or fails them. A check past SLOW_MS shows "Still checking…"; one past
  * its limit shows "No answer yet" (a warning, not a failure), and if it answers later the answer replaces that line.
  */
-import { LEVELS, level, plain } from "../vendor/wanderers-core/index.mjs";
+import { LEVELS, level, plain, readFix } from "../vendor/wanderers-core/index.mjs";
 
 export { LEVELS, plain };
 
@@ -48,22 +48,11 @@ export function healthTimeout({ first = true, lastMs = null, own = null } = {}) 
 }
 
 /**
- * A line's fix action, or null. Understood: a function (label "Fix"); { label?, run, confirm? } (run a function); { label?, action,
- * confirm? } or a plain action id (looked up in the registration's `fixes` when pressed). Labels and confirm texts are plain text.
- * @param {any} f
- * @returns {{ label: string, run?: Function, action?: string, confirm?: string } | null}
+ * A line's fix action, or null: core's `readFix` (0.6.0; the same rules the Satchel had since 0.5.0, now shared). Understood: a
+ * function (label "Fix"); { label?, run, confirm? } (run a function); { label?, action, confirm? } or a plain action id (looked up
+ * in the registration's `fixes` when pressed). Labels (60) and confirm texts (500) are plain text. Never throws.
  */
-export function readFix(f) {
-  const id = (/** @type {unknown} */ v) => typeof v === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(v) ? v : null;
-  const label = (/** @type {unknown} */ v) => typeof v === "string" && plain(v) ? plain(v).slice(0, 60) : "Fix";
-  if (typeof f === "function") return { label: "Fix", run: f };
-  if (id(f)) return { label: "Fix", action: /** @type {string} */ (f) };
-  if (!f || typeof f !== "object") return null;
-  const confirm = typeof f.confirm === "string" && plain(f.confirm) ? { confirm: plain(f.confirm).slice(0, 500) } : {};
-  if (typeof f.run === "function") return { label: label(f.label), run: f.run, ...confirm };
-  if (id(f.action)) return { label: label(f.label), action: f.action, ...confirm };
-  return null;
-}
+export { readFix };
 
 /** @param {any} l */
 const line = l => {

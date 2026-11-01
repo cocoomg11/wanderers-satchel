@@ -19,5 +19,8 @@ export const FEATURE_LIST = [
 /** Our own settings besides the feature switches (registered with config: false; shown in the hub). */
 /** @type {import("../vendor/wanderers-core/settings-model.mjs").SettingRow[]} */
 export const SETTING_ROWS = [
-  { key: "debugLog", type: "bool", default: false, label: "Debug logging", hint: "Writes what Wanderer's Satchel does (health check timings, update checks, imports) to the browser console (F12). Part of Debug logging for all." }
+  { key: "debugLog", type: "bool", default: false, label: "Debug logging", hint: "Writes what Wanderer's Satchel does (health check timings, update checks, imports) to the browser console (F12). Part of Debug logging for all." },
+  // 0.6.0: core's "Module data" journal folder (GM-only store journals) is hidden from the Journal sidebar unless this is on, or
+  // any other module's own `showModuleData` is. Per browser; switched on the hub's Maintenance page.
+  { key: "showModuleData", type: "bool", default: false, client: true, label: "Show module data folder", hint: "Shows the \"Module data\" folder (the GM-only journals your modules keep) in the Journal sidebar, in this browser.", onChange: () => { /** @type {any} */ (globalThis).ui?.journal?.render?.(); } }
 ];

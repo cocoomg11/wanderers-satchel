@@ -57,7 +57,7 @@ export async function build() {
     try {
       const d = defs(e.id); if (!d.size) return;
       const list = [...d].map(([key, x]) => ({ key, scope: x.scope, value: get(e.id, key) }));
-      parts[i] = { id: e.id, title: e.title || e.id, version, via: "settings", data: M.buildModuleExport(e.id, list, { version, exported: new Date().toISOString(), skip: e.skipSettings ?? [] }) };
+      parts[i] = { id: e.id, title: e.title || e.id, version, via: "settings", data: M.buildModuleExport(e.id, list, { version, exported: new Date().toISOString(), skip: M.skipList(e) }) };
     } catch (err) { console.warn(`${ID} | export ${e.id}`, err); problems.push(`${e.title || e.id}: ${err?.message ?? err}`); }
   });
   for (const [i, e, version] of own) {
@@ -100,7 +100,7 @@ export async function readText(text) {
       if (!r && m.via === "module") { out.push({ ...base, ok: false, error: "exported by the module itself, and it has no import the Satchel can use" }); continue; }
       if (!r) {
         const d = defs(m.id); const cur = Object.fromEntries([...d.keys()].map(k => [k, get(m.id, k)]));
-        r = M.readModuleSettings(m.id, m.data, d, cur, e?.skipSettings ?? [], e?.validators ?? {});
+        r = M.readModuleSettings(m.id, m.data, d, cur, M.skipList(e), e?.validators ?? {});
       }
       const d = defs(m.id);
       // A module's own import may label rows with translation keys too.
@@ -131,7 +131,7 @@ export async function apply(picks) {
         const r = await e.importSettings.apply(p.rows);
         written += r?.written ?? p.rows.length; reload ||= !!r?.reload; continue;
       }
-      const d = defs(p.id); const skip = new Set(e.skipSettings ?? []);
+      const d = defs(p.id); const skip = new Set(M.skipList(e));
       for (const r of p.rows) {
         if (!r || typeof r.key !== "string" || skip.has(r.key) || !d.has(r.key)) { if (r?.key) failed.push(`${p.id}.${r.key}: not imported`); continue; }
         const c = M.recheck(d.get(r.key), r.to, e.validators ?? {}, r.key);

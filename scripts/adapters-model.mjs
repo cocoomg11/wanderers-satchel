@@ -7,13 +7,16 @@
 /**
  * Record-type settings per known module: stored data, window positions or bookkeeping, not choices, so never exported or
  * imported. Wanderer's Toolkit: its own settings file's skip list plus its per-browser window positions. Red Book: its hidden
- * record settings (0.5.0; Red Book 0.4+ registers itself with the same list, which replaces this adapter once it has).
+ * record settings (0.5.0; Red Book 0.4+ registers itself with the same list, which replaces this adapter once it has). Every module
+ * on wanderers-core 0.5.0 may also have the client records `showModuleData` and `windowPlacement` (0.6.0; settings-model.mjs
+ * `CORE_RECORDS` adds them to registrations too).
  */
+const CORE = ["showModuleData", "windowPlacement"];
 export const SKIP = {
-  "wayfarers-toolkit": ["lootHistoryData", "lastSeenVersion", "setupReminded", "wizardDone", "flightCache", "goldSnapshots", "pinsNotesShown", "bossLayout", "bossFramePos", "onlineHudPos", "paneWindow"],
-  ringmaker: [],
-  "loot-ledger": [],
-  "red-book": ["openSession", "boardPins", "onlineHudPos", "onlineHudCollapsed", "migrations", "nextSession"]
+  "wayfarers-toolkit": ["lootHistoryData", "lastSeenVersion", "setupReminded", "wizardDone", "flightCache", "goldSnapshots", "pinsNotesShown", "bossLayout", "bossFramePos", "onlineHudPos", "paneWindow", ...CORE],
+  ringmaker: [...CORE],
+  "loot-ledger": [...CORE],
+  "red-book": ["openSession", "boardPins", "onlineHudPos", "onlineHudCollapsed", "migrations", "nextSession", ...CORE]
 };
 
 /**

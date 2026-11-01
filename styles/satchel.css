@@ -105,6 +105,11 @@
 .ws-hub .ws-cleanup { display: flex; flex-direction: column; gap: 10px; }
 .ws-hub .ws-cleanup h3 { margin: 0; border: none; font-size: var(--font-size-15, 0.9375rem); }
 .ws-hub .ws-cleanup p { margin: 0; }
+/* Maintenance: Module data folder and Window positions panels (0.6.0). */
+.ws-hub .ws-maint { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.ws-hub .ws-maint h3 { margin: 0; border: none; font-size: var(--font-size-15, 0.9375rem); }
+.ws-hub .ws-maint p { margin: 0; }
+.ws-hub .ws-folder-switches { margin: 0; }
 
 /*
  * Narrow hub: core's container query handles the sidebar strip and wc-cols; these are the Satchel's own grids. Its own container

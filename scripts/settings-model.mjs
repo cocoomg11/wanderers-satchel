@@ -50,8 +50,20 @@ export const MAX_VALUE_DEPTH = 12;
 const ID_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 const BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+/**
+ * Client records every module on wanderers-core 0.5.0 may register: core's remembered window placement (`windowPlacement`) and
+ * the "Module data" folder switch (`showModuleData`). Per browser, never moved between worlds: left out of every module's export
+ * and import, whatever its adapter or registration lists (0.6.0).
+ */
+export const CORE_RECORDS = ["showModuleData", "windowPlacement"];
 /** Our own settings that are bookkeeping, never moved between worlds. */
-export const OWN_SKIP = [];
+export const OWN_SKIP = [...CORE_RECORDS];
+/**
+ * The keys left out of an entry's settings export and import: its own skip list plus `CORE_RECORDS`.
+ * @param {{ skipSettings?: string[] } | null | undefined} entry
+ * @returns {string[]}
+ */
+export const skipList = entry => [...new Set([...(Array.isArray(entry?.skipSettings) ? entry.skipSettings : []), ...CORE_RECORDS])];
 
 const clone = (/** @type {unknown} */ v) => v === undefined ? null : JSON.parse(JSON.stringify(v));
 

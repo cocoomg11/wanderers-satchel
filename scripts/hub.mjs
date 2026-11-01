@@ -20,7 +20,8 @@ import * as Life from "./lifecycle.mjs";
 import * as Self from "./self.mjs";
 import { toggleFilter } from "./filter-model.mjs";
 import { UI_CLASSES } from "../vendor/wanderers-core/index.mjs";
-import { log } from "./core.mjs";
+import { RememberedWindow, resetPlacement } from "../vendor/wanderers-core/foundry/index.mjs";
+import { log, S } from "./core.mjs";
 
 const { cache } = Cleanup;
 Self.bindUpdates(o => checkUpdates(o), () => new Map(updates));
@@ -77,6 +78,21 @@ export async function setDebugAll(on) {
   return n;
 }
 
+/**
+ * Every active module's own "Module data" switch (`<id>.showModuleData`, registered by modules on core 0.5.0), read only:
+ * [{ id, title, on }], the Satchel included. A switch that can't be read counts as off.
+ */
+function dataFolderRows() {
+  /** @type {{ id: string, title: string, on: boolean }[]} */ const out = [];
+  for (const m of game.modules ?? []) {
+    if (!m?.active || !m.id) continue;
+    if (!game.settings.settings.has(`${m.id}.showModuleData`)) continue;
+    let on = false; try { on = game.settings.get(m.id, "showModuleData") === true; } catch { }
+    out.push({ id: m.id, title: m.id === ID ? TITLE : Reg.entry(m.id)?.title || m.title || m.id, on });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- the window
 const safe = (/** @type {() => unknown} */ fn) => { try { return !!fn(); } catch { return false; } };
 const features = () => ({ updateCheck: F.on("updateCheck"), combinedHealth: F.on("combinedHealth"), sharedSettings: F.on("sharedSettings"), debugAll: F.on("debugAll"), settingsBackup: F.on("settingsBackup"), whatsNew: F.on("whatsNew"), healthFixes: F.on("healthFixes") });
@@ -95,7 +111,7 @@ const selfItem = () => ({ id: ID, title: TITLE, docs: Reg.R.docLinks(Reg.moduleI
 /** "checked 2 h ago" for the last update check in this browser. @param {number} now */
 const checkedHint = now => { const at = Life.lastChecked(); return at ? `checked ${HM.timeAgoLong(at, now)}` : ""; };
 
-export class HubApp extends foundry.applications.api.ApplicationV2 {
+export class HubApp extends RememberedWindow(foundry.applications.api.ApplicationV2, { moduleId: ID, key: "hub" }) {
   static DEFAULT_OPTIONS = {
     id: `${ID}-hub`, classes: ["ws-window", "ws-hub", ...UI_CLASSES],
     window: { title: TITLE, icon: "fa-solid fa-bag-shopping", resizable: true },
@@ -103,7 +119,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     actions: {
       nav: HubApp.#onNav, panel: HubApp.#onPanel, docs: HubApp.#onLink, changelog: HubApp.#onLink, bugs: HubApp.#onLink, extra: HubApp.#onExtra,
       recheckUpdates: HubApp.#onRecheck, checkAll: HubApp.#onCheckAll, healthOne: HubApp.#onHealthOne, healthAgain: HubApp.#onCheckAll, healthPost: HubApp.#onPost, healthFilter: HubApp.#onFilter,
-      export: HubApp.#onExport, pickImport: HubApp.#onPickImport, doImport: HubApp.#onImport, cancelImport: HubApp.#onCancelImport, removeData: HubApp.#onRemove,
+      export: HubApp.#onExport, pickImport: HubApp.#onPickImport, doImport: HubApp.#onImport, cancelImport: HubApp.#onCancelImport, removeData: HubApp.#onRemove, resetWindows: HubApp.#onResetWindows,
       healthFix: HubApp.#onFix, dismissNews: HubApp.#onDismiss, backupNow: HubApp.#onBackup, backups: HubApp.#onBackups, restoreBackup: HubApp.#onRestore, deleteBackup: HubApp.#onDeleteBackup
     }
   };
@@ -213,7 +229,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
       case "health": return View.healthPageHtml();
       case "backups": return View.backupsHtml(HM.backupsModel(d.backups, d.now, (/** @type {number} */ at) => new Date(at).toLocaleString()), { error: Life.backupError(), busy: this.busy });
       case "transfer": return View.transferHtml({ tab: this.tabGroups.transfer ?? "export", error: this.imp.error, file: this.imp.file, result: this.imp.result, model: this.imp.result ? HM.importModel(this.imp.result, this.imp.ticks) : null });
-      case "maintenance": return View.maintenanceHtml(Cleanup.counts(), /** @type {[string, string][]} */ (Cleanup.CATEGORIES), Cleanup.CONFIRM_WORD);
+      case "maintenance": return View.maintenanceHtml(Cleanup.counts(), /** @type {[string, string][]} */ (Cleanup.CATEGORIES), Cleanup.CONFIRM_WORD, { dataFolder: HM.dataFolderModel(dataFolderRows(), ID) });
       default: return View.overviewHtml(HM.overviewModel({ items: d.items, updates, health: d.health, features: d.features, debug: d.debug, now: d.now, backups: d.backups }), { updateCheck: d.features.updateCheck, combinedHealth: d.features.combinedHealth, id: ID, checkedHint: checkedHint(d.now), whatsNew: View.whatsNewHtml(d.news), selfUpdate: updates.get(ID) ?? null });
     }
   }
@@ -242,6 +258,14 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
       const r = debugState().rows.find((/** @type {any} */ x) => x.id === t.dataset.id); if (!r) return;
       try { await game.settings.set(r.namespace, r.key, t.checked); log(`debug ${r.id} ${t.checked}`); } catch (e) { console.warn(`${ID} | debug ${r.id}`, e); }
       this.refresh(); return;
+    }
+    if (kind === "showModuleData") {
+      // Our own switch only (client setting, this browser); its onChange redraws the Journal sidebar. Other modules' switches
+      // are shown, never written.
+      try { await S.set("showModuleData", t.checked); } catch (e) { console.warn(`${ID} | showModuleData`, e); }
+      const st = this.element.querySelector("[data-part=folder-state]")?.closest("section");
+      if (st) st.outerHTML = View.dataFolderHtml(HM.dataFolderModel(dataFolderRows(), ID));
+      return;
     }
     if (kind === "tick") {
       const k = HM.tickKey(Number(t.dataset.m), Number(t.dataset.r));
@@ -355,6 +379,13 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     const box = /** @type {HTMLElement | null} */ (form.querySelector("[data-part=cleanup-error]"));
     if (!r.ok) { if (box) { box.textContent = r.error ?? ""; box.hidden = false; } return; }
     this.render();
+  }
+
+  /** Maintenance › Reset window positions: forgets where the hub and the health window were left (this browser). */
+  static async #onResetWindows() {
+    if (!game.user?.isGM) return;
+    await resetPlacement(ID);
+    ui.notifications.info(`${TITLE}: window positions reset. Open windows move back the next time they open.`);
   }
 
   /**

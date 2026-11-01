@@ -11,6 +11,7 @@ import * as Self from "./self.mjs";
 import { log } from "./core.mjs";
 import * as View from "./hub-view.mjs";
 import { UI_CLASSES } from "../vendor/wanderers-core/index.mjs";
+import { RememberedWindow } from "../vendor/wanderers-core/foundry/index.mjs";
 
 /** Per module, for this page load: how long its last answer took (the next limit is based on it). */
 const lastMs = new Map();
@@ -107,7 +108,7 @@ export function post(results) {
   return ChatMessage.create({ content: html(H.groupHealth(results), { card: true }), whisper: game.users.filter((/** @type {any} */ u) => u.isGM).map((/** @type {any} */ u) => u.id), speaker: { alias: TITLE }, flags: { [ID]: { health: true } } });
 }
 
-export class HealthApp extends foundry.applications.api.ApplicationV2 {
+export class HealthApp extends RememberedWindow(foundry.applications.api.ApplicationV2, { moduleId: ID, key: "health" }) {
   static DEFAULT_OPTIONS = { id: `${ID}-health`, classes: ["ws-window", "ws-health-window", ...UI_CLASSES], window: { title: `${TITLE} · Health check`, icon: "fa-solid fa-stethoscope", resizable: true }, position: { width: 600, height: 680 } };
   /** @param {any} [opts] */
   constructor(opts = {}) { super(opts); this.ids = opts.ids ?? null; /** @type {any} */ this.job = null; /** @type {HTMLElement | null} */ this.box = null; }

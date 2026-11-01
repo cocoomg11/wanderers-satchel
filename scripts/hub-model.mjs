@@ -358,3 +358,18 @@ export function importModel(result, ticks) {
   const hint = [`${ticked} ticked`, reload ? `${reload} need${reload === 1 ? "s" : ""} a reload (Foundry will ask)` : ""].filter(Boolean).join(" · ");
   return { facts, modules, ticked, reload, hint, button: ticked ? `Import ${plural(ticked, "setting")}` : "Import" };
 }
+
+/**
+ * The Maintenance page's "Module data folder" panel (0.6.0). Core hides the shared "Module data" journal folder unless ANY active
+ * module's own `showModuleData` setting is on, so the Satchel's switch alone can't hide it: the panel lists the other modules'
+ * switches (read-only). `rows`: [{ id, title, on }] for every active module that registered `showModuleData`, the Satchel included.
+ * @param {{ id: string, title: string, on: boolean }[]} rows @param {string} selfId
+ * @returns {{ own: boolean, others: { id: string, title: string, on: boolean }[], othersOn: string[], shown: boolean }}
+ */
+export function dataFolderModel(rows, selfId) {
+  const list = Array.isArray(rows) ? rows.filter(r => r && typeof r.id === "string") : [];
+  const own = list.some(r => r.id === selfId && r.on === true);
+  const others = list.filter(r => r.id !== selfId).map(r => ({ id: r.id, title: String(r.title || r.id), on: r.on === true })).sort((a, b) => a.title.localeCompare(b.title));
+  const othersOn = others.filter(r => r.on).map(r => r.title);
+  return { own, others, othersOn, shown: own || othersOn.length > 0 };
+}

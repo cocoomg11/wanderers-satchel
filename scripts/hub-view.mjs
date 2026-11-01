@@ -218,8 +218,13 @@ export const footerHtml = model => `<span class="wc-hint">${esc(model.hint)}</sp
  * The maintenance page: Remove Satchel data (dry-run counts, type REMOVE).
  * @param {Record<string, number>} counts @param {[string, string][]} categories @param {string} word
  */
-export function maintenanceHtml(counts, categories, word) {
-  return `${pageHead("Maintenance")}<section class="wc-panel ws-pad"><form class="ws-cleanup" data-part="cleanup" autocomplete="off">
+/**
+ * The Maintenance page: the "Module data folder" switch (this browser), window positions, and Remove Satchel data.
+ * @param {Record<string, number>} counts @param {[string, string][]} categories @param {string} word
+ * @param {{ dataFolder?: ReturnType<typeof import("./hub-model.mjs").dataFolderModel> | null }} [o]
+ */
+export function maintenanceHtml(counts, categories, word, { dataFolder = null } = {}) {
+  return `${pageHead("Maintenance")}${dataFolder ? dataFolderHtml(dataFolder) : ""}${windowsHtml()}<section class="wc-panel ws-pad"><form class="ws-cleanup" data-part="cleanup" autocomplete="off">
     <h3><i class="fa-solid fa-broom" aria-hidden="true"></i> Remove Satchel data</h3>
     <p>Removes what the Satchel stored. The counts are what would go now (a dry run); nothing changes until you confirm. Other modules' settings and data are never touched, including debug settings the <em>Debug logging for all</em> switch turned on (turn them off on the overview first if you want).</p>
     ${categories.map(([k, label]) => `<div class="form-group"><label class="ws-check wc-grow"><input type="checkbox" name="${esc(k)}" ${k === "settings" || k === "store" ? "" : "checked"}> ${esc(label)}</label>${badge(counts[k] ? "info" : "off", String(counts[k] ?? 0), { title: "Would be removed now" })}</div>`).join("")}
@@ -228,6 +233,35 @@ export function maintenanceHtml(counts, categories, word) {
     <p class="wc-banner wc-bad" data-part="cleanup-error" role="alert" hidden></p>
     <footer class="wc-row wc-end">${button("removeData", "Remove", { icon: "fa-solid fa-broom", danger: true })}</footer>
   </form></section>`;
+}
+
+/**
+ * The "Module data folder" panel: the Satchel's own switch, and the other modules' switches as read-only lines (any one that is on
+ * shows the folder for all of them).
+ * @param {ReturnType<typeof import("./hub-model.mjs").dataFolderModel>} m
+ */
+export function dataFolderHtml(m) {
+  const others = m.others.length
+    ? `<ul class="wc-lines ws-folder-switches" aria-label="Other modules' switches">${m.others.map(r => statusLine(r.on ? "info" : "off", `${r.title}: ${r.on ? "on" : "off"}`)).join("")}</ul>`
+    : `<p class="wc-hint">No other active module has its own switch.</p>`;
+  const state = m.shown
+    ? (m.own ? "The folder is shown in this browser." : `The folder is shown in this browser because ${m.othersOn.join(", ")} ${m.othersOn.length === 1 ? "has its" : "have their"} switch on. Turn ${m.othersOn.length === 1 ? "it" : "them"} off in ${m.othersOn.length === 1 ? "that module's" : "those modules'"} own settings to hide it.`)
+    : "The folder is hidden in this browser.";
+  return `<section class="wc-panel ws-pad ws-maint" aria-labelledby="ws-folder-h"><h3 id="ws-folder-h"><i class="fa-solid fa-folder-closed" aria-hidden="true"></i> Module data folder</h3>
+    <p>Your modules keep their GM-only journals together in one Journal folder, <em>Module data</em>, hidden from the Journal sidebar. This tidies the sidebar only: it hides nothing from players (the journals are GM only either way).</p>
+    <label class="ws-check"><input type="checkbox" data-change="showModuleData" ${m.own ? "checked" : ""}> Show module data folder <span class="wc-hint">· the Satchel's switch, this browser</span></label>
+    <p class="wc-hint">Each module has a switch of its own (in its settings), and the folder shows when any one is on. Theirs, as set in this browser:</p>
+    ${others}
+    <p class="wc-hint" data-part="folder-state">${esc(state)}</p>
+  </section>`;
+}
+
+/** The "Window positions" panel: forget where the Satchel's windows were left. */
+export function windowsHtml() {
+  return `<section class="wc-panel ws-pad ws-maint" aria-labelledby="ws-windows-h"><h3 id="ws-windows-h"><i class="fa-solid fa-window-restore" aria-hidden="true"></i> Window positions</h3>
+    <p>The hub and the health check window open where you last left them, in this browser.</p>
+    <footer class="wc-row wc-end">${button("resetWindows", "Reset window positions", { icon: "fa-solid fa-arrows-to-dot", title: "Open windows stay put until closed; next time they open at the default place and size." })}</footer>
+  </section>`;
 }
 
 /**

@@ -13,6 +13,8 @@ import * as Cleanup from "./cleanup.mjs";
 import * as V from "./version-model.mjs";
 import * as Life from "./lifecycle.mjs";
 import { CORE_VERSION } from "../vendor/wanderers-core/index.mjs";
+import { registerOpenKeybinding, registerWindowPlacement, hideDataFolder } from "../vendor/wanderers-core/foundry/index.mjs";
+import { S } from "./core.mjs";
 
 let isReady = false; let resolveReady = (/** @type {any} */ _api) => { }; const readyPromise = new Promise(r => { resolveReady = r; });
 /** GM check for API entries that do something: a player gets a notice and undefined. */
@@ -66,9 +68,14 @@ class HubMenu extends foundry.applications.api.ApplicationV2 {
 Hooks.once("init", () => {
   F.registerSettings();
   game.settings.registerMenu(ID, "hub", { name: TITLE, label: "Open the Satchel", hint: "Every one of your modules in one window: versions and updates, each module's own control panel, a combined health check, one-file settings export and import, and Remove Satchel data.", icon: "fa-solid fa-bag-shopping", type: HubMenu, restricted: true });
+  // Core's open key binding (0.6.0): the same action id as before ("open"), so a key a GM chose is kept; no default key.
   try {
-    game.keybindings.register(ID, "open", { name: `Open ${TITLE}`, hint: "Opens the Wanderer's Satchel hub (GM only). No key is set by default.", editable: [], restricted: true, onDown: () => { if (!game.user?.isGM) return false; Hub.open(); return true; }, precedence: CONST.KEYBINDING_PRECEDENCE.NORMAL });
+    registerOpenKeybinding({ moduleId: ID, action: "open", name: `Open ${TITLE}`, hint: "Opens the Wanderer's Satchel hub (GM only). No key is set by default.", gmOnly: true, onDown: () => { Hub.open(); }, precedence: CONST.KEYBINDING_PRECEDENCE.NORMAL });
   } catch (e) { console.warn(`${ID} | key binding not registered`, e); }
+  // Core's remembered window placement (hub, health window): one hidden client setting, `windowPlacement`.
+  registerWindowPlacement(ID);
+  // Core's "Module data" journal folder is hidden from the Journal sidebar unless our switch (or any module's own) is on.
+  hideDataFolder(ID, { shown: () => S.get("showModuleData") === true });
   const mod = game.modules.get(ID); if (mod) mod.api = API;
 
   if (F.on("sceneButton")) Hooks.on("getSceneControlButtons", (/** @type {any} */ controls) => {

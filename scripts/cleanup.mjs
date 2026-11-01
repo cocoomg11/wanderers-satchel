@@ -1,7 +1,10 @@
 /**
  * Remove Satchel data (the hub's Maintenance page, GM only): counts what Wanderer's Satchel stored (a dry run), lets the GM tick what goes and
- * asks to type REMOVE. What the Satchel writes: its own settings (feature switches), `flags.wanderers-satchel` on chat messages (the
- * combined health card), its GM-only journal (settings backups, versions seen), the update-check answers in this browser's
+ * asks to type REMOVE. What the Satchel writes: its own settings (feature switches, `debugLog`; client `showModuleData` and core's
+ * `windowPlacement`, both reset by "settings" since the plan walks every registered setting of our namespace),
+ * `flags.wanderers-satchel` on chat messages (the combined health card), its GM-only journal (settings backups, versions seen; the
+ * flags `storeEntry`, `store` and core's `dataFolderFiled`, removed with the entry by core's `Store.remove()`, which also deletes
+ * the "Module data" folder when it is empty), the update-check answers in this browser's
  * session storage, and the health check filter and the last daily update check in its local storage. Nothing of any other
  * module is touched;
  * debug settings the "Debug logging for all" switch changed belong to those modules and are listed, not reset.
@@ -15,9 +18,9 @@ import { CONFIRM_WORD, confirmed, hasFlags } from "../vendor/wanderers-core/inde
 
 export const CATEGORIES = [
   ["messages", "Satchel flags on chat messages (combined health cards whispered to the GMs; the cards are deleted)"],
-  ["store", "The GM-only journal: settings backups and the module versions last shown in What's new (deleted; What's new then starts afresh)"],
+  ["store", "The GM-only journal: settings backups and the module versions last shown in What's new (deleted with its flags, including the \"filed in Module data\" mark; the Module data folder goes too when no other module's journal is in it; What's new then starts afresh)"],
   ["cache", "Kept in this browser: update-check answers (session storage), the health check filter and the last daily update check (local storage)"],
-  ["settings", "Reset Wanderer's Satchel's settings to their defaults (feature switches and its debug logging; reloads)"]
+  ["settings", "Reset Wanderer's Satchel's settings to their defaults (feature switches, its debug logging, and in this browser the Module data folder switch and the remembered window positions; reloads)"]
 ];
 
 const ours = (/** @type {any} */ d) => hasFlags(d, ID);

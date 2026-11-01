@@ -20,7 +20,8 @@ test("adapters: the four known modules, none provisional, debug settings named",
   assert.deepEqual(byId("ringmaker").debugSetting, { namespace: "ringmaker", key: "debugLog" });
   assert.equal(typeof byId("loot-ledger").health, "function");
   assert.ok(byId("wayfarers-toolkit").skipSettings.includes("lootHistoryData"));
-  assert.deepEqual(byId("red-book").skipSettings, ["openSession", "boardPins", "onlineHudPos", "onlineHudCollapsed", "migrations", "nextSession"]);
+  assert.deepEqual(byId("red-book").skipSettings, ["openSession", "boardPins", "onlineHudPos", "onlineHudCollapsed", "migrations", "nextSession", "showModuleData", "windowPlacement"]);
+  for (const a of ADAPTERS) assert.ok(a.skipSettings.includes("showModuleData") && a.skipSettings.includes("windowPlacement"), `${a.id}: core 0.5.0 client records skipped`);
 });
 
 test("toolkit adapter: healthReport preferred, old health() fallback, no removed features", async () => {
@@ -160,7 +161,7 @@ test("skip lists: toolkit adds api.settingsRecords() on a GM client, keeps the s
   globalThis.game = fakeGame({ "wayfarers-toolkit": { active: true, api: {} } });
   assert.deepEqual(byId("wayfarers-toolkit").skipSettings, A.SKIP["wayfarers-toolkit"]);
   assert.deepEqual(A.skipFor("wayfarers-toolkit", { settingsRecords: () => { throw new Error("x"); } }), A.SKIP["wayfarers-toolkit"]);
-  assert.deepEqual(A.skipFor("ringmaker", { settingsRecords: () => ["x"] }), []);
+  assert.deepEqual(A.skipFor("ringmaker", { settingsRecords: () => ["x"] }), ["showModuleData", "windowPlacement"]);
 });
 
 test("toolkit adapter: title follows the installed module, with a Wanderer's fallback", () => {
