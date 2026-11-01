@@ -100,3 +100,50 @@ test("whatsNewHtml uses the summary with folded developer notes", () => {
   assert.match(html, /<summary>Developer notes<\/summary>/);
   assert.doesNotMatch(html.split("<details")[0], /Under the hood/);
 });
+
+// ---------------------------------------------------------------- 2. Health page: default filter, Show all (N OK), All N checks OK
+import * as Fm from "../scripts/filter-model.mjs";
+import { groupHealth } from "../scripts/health-model.mjs";
+
+const lines = (/** @type {string[]} */ lv) => [{ title: "S", lines: lv.map((level, i) => ({ level, text: `${level} ${i}` })) }];
+
+test("default filter: warnings, problems, still checking; OK hidden behind 'Show all (N OK)'", () => {
+  assert.deepEqual([...Fm.defaultFilter()], ["warn", "bad", "pending"]);
+  assert.ok(Object.isFrozen(Fm.DEFAULT_FILTER));
+  const g = groupHealth([
+    { id: "a", title: "A", state: "ran", report: lines(["ok", "ok", "ok", "warn"]) },
+    { id: "b", title: "B", state: "ran", report: lines(["ok", "ok"]) },
+    { id: "c", title: "C", state: "ran", report: lines(["bad", "ok"]) }
+  ]);
+  const f = Fm.defaultFilter();
+  assert.deepEqual(Fm.okFold(g, f), { hiddenOk: 6, allOk: false, total: 6 });
+  const html = View.healthHtml(g, { filter: f });
+  assert.match(html, /data-filter="all" title="Show every line, OK ones too">Show all \(6 OK\)</);
+  assert.match(html, /warn 3/); assert.match(html, /bad 0/); assert.doesNotMatch(html, />ok 0</);
+  assert.doesNotMatch(html, /All 6 checks OK/);
+  // All, or OK pressed: no fold, no chip.
+  assert.deepEqual(Fm.okFold(g, new Set()), { hiddenOk: 0, allOk: false, total: 0 });
+  assert.equal(Fm.okFold(g, new Set(["ok", "warn"])).hiddenOk, 0);
+  assert.doesNotMatch(View.healthHtml(g, { filter: new Set() }), /Show all \(/);
+});
+
+test("nothing to look at: one 'All N checks OK' line plus the Show all chip; a running or failed check is not 'all OK'", () => {
+  const g = groupHealth([{ id: "a", title: "A", state: "ran", report: lines(["ok", "ok"]) }, { id: "b", title: "B", state: "ran", report: lines(["ok", "info"]) }]);
+  const f = Fm.defaultFilter();
+  assert.deepEqual(Fm.okFold(g, f), { hiddenOk: 3, allOk: true, total: 3 });
+  const html = View.healthHtml(g, { filter: f });
+  assert.match(html, /class="wc-lines ws-all-ok"/); assert.match(html, /All 3 checks OK/); assert.match(html, /Show all \(3 OK\)/);
+  assert.doesNotMatch(html, /hidden by the filter/);
+  assert.equal(Fm.allOkText(1), "All 1 check OK");
+  for (const state of ["pending", "slow", "timeout", "failed"]) {
+    const r = groupHealth([{ id: "a", title: "A", state: "ran", report: lines(["ok"]) }, { id: "b", title: "B", state, error: "x" }]);
+    assert.equal(Fm.okFold(r, f).allOk, false, state);
+  }
+});
+
+test("module page: the same fold and all-OK line", () => {
+  const group = groupHealth([{ id: "m", title: "M", state: "ran", report: lines(["ok", "ok"]) }]).groups[0];
+  const model = { id: "m", title: "M", version: "1", badges: [], update: { banner: false, level: "ok" }, installed: true, health: { available: true, group, hint: "" }, transfer: null, debug: null, links: [], extras: [], notes: [], canPanel: true };
+  const html = View.moduleHtml(/** @type {any} */ (model), { filter: Fm.defaultFilter() });
+  assert.match(html, /All 2 checks OK/); assert.match(html, /Show all \(2 OK\)/); assert.doesNotMatch(html, /No lines match/);
+});

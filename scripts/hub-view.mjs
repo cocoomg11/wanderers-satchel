@@ -8,7 +8,7 @@
 import { esc, plural } from "./const.mjs";
 import { UI_CLASSES, TONES, tone, icon as coreIcon, badge as coreBadge, dot, statusLine, navItem } from "../vendor/wanderers-core/index.mjs";
 import { preview } from "./settings-model.mjs";
-import { filterChips, applyFilter, hiddenText } from "./filter-model.mjs";
+import { filterChips, applyFilter, hiddenText, okFold, showAllText, allOkText } from "./filter-model.mjs";
 import { notesHtml } from "./notes-model.mjs";
 
 /** The root classes for markup outside a Satchel window (the chat card). */
@@ -110,9 +110,9 @@ export function moduleHtml(m, { filter = new Set(), fixes = false, news = "" } =
     if (!h.available) healthBody = `<p class="wc-hint">Not active in this world.</p>`;
     else if (!h.group) healthBody = `<p class="wc-hint">Not checked since the page loaded. <em>Run check</em> runs this module's own check.</p>`;
     else {
-      const one = { groups: [h.group] }; const f = applyFilter(one, filter);
-      const lines = f.groups.length ? `${h.group.note && !f.on ? `<p class="wc-hint">${esc(h.group.note)}</p>` : ""}${groupSections(f.groups[0], { fixes })}` : `<p class="wc-hint">No lines match the filter.</p>`;
-      healthBody = `${filterBar(filterChips(one, filter), `${m.title} health lines`)}${lines}`;
+      const one = { groups: [h.group] }; const f = applyFilter(one, filter); const fold = okFold(one, filter);
+      const lines = f.groups.length ? `${h.group.note && !f.on ? `<p class="wc-hint">${esc(h.group.note)}</p>` : ""}${groupSections(f.groups[0], { fixes })}` : fold.allOk ? allOkHtml(fold.total) : `<p class="wc-hint">No lines match the filter.</p>`;
+      healthBody = `${filterBar(filterChips(one, filter), `${m.title} health lines`, { hiddenOk: fold.hiddenOk })}${lines}`;
     }
   }
   const healthPanel = !h ? "" : panel("Health", healthBody, `<span class="wc-hint">${esc(h.hint)}</span>${h.available ? button("healthOne", h.group ? "Run again" : "Run check", { icon: "fa-solid fa-stethoscope", small: true, data: { id: m.id } }) : ""}`, " ws-health");
@@ -134,10 +134,13 @@ export const fixButton = (id, fix) => button("healthFix", fix.label || "Fix", { 
  * The filter chips: toggle buttons (`aria-pressed`) wired to the hub's `healthFilter` action. "All" clears the filter.
  * @param {ReturnType<typeof filterChips>} chips @param {string} label what the group of buttons filters (for screen readers)
  */
-export function filterBar(chips, label) {
+export function filterBar(chips, label, { hiddenOk = 0 } = {}) {
   const on = chips.some(c => c.key !== "all" && c.pressed);
-  return `<div class="ws-filters${on ? " ws-filtering" : ""}" role="group" aria-label="Filter ${esc(label)}">${chips.filter(c => c.show).map(c => `<button type="button" class="wc-badge wc-${c.tone} ws-filter" data-action="healthFilter" data-filter="${c.key}" aria-pressed="${c.pressed}">${c.key === "all" ? "" : `<i class="${TONES[c.tone].icon}" aria-hidden="true"></i>`}${esc(c.label)}</button>`).join("")}</div>`;
+  const showAll = hiddenOk > 0 ? `<button type="button" class="wc-badge wc-none ws-filter ws-show-all" data-action="healthFilter" data-filter="all" title="Show every line, OK ones too">${esc(showAllText(hiddenOk))}</button>` : "";
+  return `<div class="ws-filters${on ? " ws-filtering" : ""}" role="group" aria-label="Filter ${esc(label)}">${chips.filter(c => c.show).map(c => `<button type="button" class="wc-badge wc-${c.tone} ws-filter" data-action="healthFilter" data-filter="${c.key}" aria-pressed="${c.pressed}">${c.key === "all" ? "" : `<i class="${TONES[c.tone].icon}" aria-hidden="true"></i>`}${esc(c.label)}</button>`).join("")}${showAll}</div>`;
 }
+/** The one line shown instead of a report the filter leaves empty because everything is OK (0.7.0). @param {number} n */
+export const allOkHtml = n => `<ul class="wc-lines ws-all-ok" role="status">${statusLine("ok", allOkText(n))}</ul>`;
 
 /** The summary as count badges (the chat card and the separate window: no buttons). @param {any} s */
 export function summaryHtml(s) {
@@ -162,11 +165,12 @@ const groupHead = (/** @type {any} */ x) => {
  */
 export function healthHtml(g, { filter = null, card = false, summaryTitle = "", fixes = false } = {}) {
   const f = filter ? applyFilter(g, filter) : { groups: g.groups, hidden: 0, on: false };
-  const body = f.groups.map((/** @type {any} */ x) => `<section class="ws-health-group" aria-label="${esc(x.title)}">${groupHead(x)}${x.note ? `<p class="wc-hint">${esc(x.note)}</p>` : ""}${groupSections(x, { fixes: fixes && !card })}</section>`).join("");
+  const fold = filter ? okFold(g, filter) : { hiddenOk: 0, allOk: false, total: 0 };
+  const body = fold.allOk && !f.groups.length ? allOkHtml(fold.total) : f.groups.map((/** @type {any} */ x) => `<section class="ws-health-group" aria-label="${esc(x.title)}">${groupHead(x)}${x.note ? `<p class="wc-hint">${esc(x.note)}</p>` : ""}${groupSections(x, { fixes: fixes && !card })}</section>`).join("");
   const summary = filter
-    ? `<div class="ws-summary"${summaryTitle ? ` title="${esc(summaryTitle)}"` : ""}><span class="ws-summary-text">${plural(g.summary.modules, "module")}</span>${filterBar(filterChips(g, filter), "health lines")}</div>`
+    ? `<div class="ws-summary"${summaryTitle ? ` title="${esc(summaryTitle)}"` : ""}><span class="ws-summary-text">${plural(g.summary.modules, "module")}</span>${filterBar(filterChips(g, filter), "health lines", { hiddenOk: fold.hiddenOk })}</div>`
     : `<p class="ws-summary"${summaryTitle ? ` title="${esc(summaryTitle)}"` : ""}>${summaryHtml(g.summary)}</p>`;
-  const hidden = f.hidden ? `<p class="wc-hint ws-hidden-note" role="status">${esc(hiddenText(f.hidden))}${f.groups.length ? "" : ". Choose All to see every line."}</p>` : "";
+  const hidden = f.hidden && !(fold.allOk && !f.groups.length) ? `<p class="wc-hint ws-hidden-note" role="status">${esc(hiddenText(f.hidden))}${f.groups.length ? "" : ". Choose All to see every line."}</p>` : "";
   const empty = g.groups.length ? "" : "<p>No modules to check.</p>";
   const inner = `<div class="ws-health">${summary}${hidden}${body}${empty}</div>`;
   return card ? `<div class="${ROOT} ws-card">${inner}</div>` : inner;

@@ -401,14 +401,16 @@ test("prefs: filter saved per browser; All removes it; storage that throws or is
     assert.equal(mem.get(Prefs.FILTER_KEY), '["warn","bad"]');
     assert.deepEqual([...Prefs.loadFilter()], ["warn", "bad"]);
     assert.equal(Prefs.hasFilter(), true);
-    Prefs.saveFilter(new Set()); assert.equal(mem.has(Prefs.FILTER_KEY), false);
-    mem.set(Prefs.FILTER_KEY, "not json"); assert.equal(Prefs.loadFilter().size, 0);
+    Prefs.saveFilter(new Set()); assert.equal(mem.get(Prefs.FILTER_KEY), "[]", "All is remembered (0.7.0)"); assert.equal(Prefs.loadFilter().size, 0);
+    mem.set(Prefs.FILTER_KEY, "not json"); assert.deepEqual([...Prefs.loadFilter()], ["warn", "bad", "pending"]);
+    mem.delete(Prefs.FILTER_KEY); assert.deepEqual([...Prefs.loadFilter()], ["warn", "bad", "pending"], "nothing stored: the default");
+    mem.set(Prefs.FILTER_KEY, "[]");
     assert.equal(Prefs.clearFilter(), 1); assert.equal(Prefs.clearFilter(), 0);
     const boom = () => { throw new Error("SecurityError"); };
     set({ getItem: boom, setItem: boom, removeItem: boom });
-    assert.equal(Prefs.loadFilter().size, 0); assert.doesNotThrow(() => Prefs.saveFilter(new Set(["ok"]))); assert.equal(Prefs.hasFilter(), false); assert.equal(Prefs.clearFilter(), 0);
+    assert.equal(Prefs.loadFilter().size, 3); assert.doesNotThrow(() => Prefs.saveFilter(new Set(["ok"]))); assert.equal(Prefs.hasFilter(), false); assert.equal(Prefs.clearFilter(), 0);
     Object.defineProperty(globalThis, "localStorage", { get: boom, configurable: true });
-    assert.equal(Prefs.loadFilter().size, 0); assert.doesNotThrow(() => Prefs.saveFilter(new Set(["ok"])));
+    assert.equal(Prefs.loadFilter().size, 3); assert.doesNotThrow(() => Prefs.saveFilter(new Set(["ok"])));
   } finally {
     if (desc) Object.defineProperty(globalThis, "localStorage", desc); else delete (/** @type {any} */ (globalThis)).localStorage;
   }

@@ -141,3 +141,7 @@
 .ws-hub .ws-notes-more[open] > summary { margin-bottom: 2px; }
 .ws-hub .ws-fix { flex: none; margin-left: 8px; }
 .ws-hub .ws-actions-cell { width: 1%; white-space: nowrap; }
+
+/* 0.7.0: "Show all (N OK)" chip and the single "All N checks OK" line */
+.ws-window button.ws-filter.ws-show-all { margin-left: auto; }
+.ws-hub .ws-all-ok { margin: 4px 0; }

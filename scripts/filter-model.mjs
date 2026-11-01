@@ -40,12 +40,44 @@ export function toggleFilter(filter, key) {
   return next;
 }
 
+/**
+ * The filter a browser starts with when nothing is remembered (0.7.0): Warnings, Problems and Still checking, OK lines hidden
+ * (a full report is mostly green lines; the few that need a look come first). "All" chosen once is remembered as All.
+ */
+export const DEFAULT_FILTER = Object.freeze(["warn", "bad", "pending"]);
+/** A fresh Set of the default filter. */
+export const defaultFilter = () => new Set(DEFAULT_FILTER);
+
+/**
+ * The OK fold under a filtered report (0.7.0): { hiddenOk, allOk, total }. `hiddenOk`: ok lines the filter hides (the "Show all
+ * (N OK)" chip shows when it is above 0); `allOk`: the filter hides OK lines and there is nothing else to show (no warning,
+ * problem, check still running or module that failed), so the report says "All N checks OK" in one line. Off for an empty filter.
+ * @param {{ groups: any[], summary?: any }} g
+ * @param {Set<string>} filter
+ */
+export function okFold(g, filter) {
+  if (!filter.size || filter.has("ok")) return { hiddenOk: 0, allOk: false, total: 0 };
+  let ok = 0, other = 0;
+  for (const x of g.groups) {
+    if (x.state === "pending" || x.state === "slow" || x.state === "timeout" || x.state === "failed") { other++; continue; }
+    ok += x.counts?.ok ?? 0; other += (x.counts?.warn ?? 0) + (x.counts?.bad ?? 0);
+  }
+  return { hiddenOk: ok, allOk: ok > 0 && other === 0, total: ok };
+}
+/** "Show all (12 OK)". @param {number} n */
+export const showAllText = n => `Show all (${n} OK)`;
+/** "All 12 checks OK". @param {number} n */
+export const allOkText = n => `All ${plural(n, "check")} OK`;
+
 /** The stored text of a filter (a JSON array in chip order). @param {Set<string>} filter */
 export const writeFilter = filter => JSON.stringify(FILTERS.map(f => f.key).filter(k => filter.has(k)));
-/** A filter from stored text; anything unreadable is All. @param {unknown} text */
+/**
+ * A filter from stored text: `[]` is All; nothing stored (null, empty) or anything unreadable is the default (DEFAULT_FILTER).
+ * @param {unknown} text
+ */
 export function readFilter(text) {
-  if (typeof text !== "string" || !text) return new Set();
-  try { return normalizeFilter(JSON.parse(text)); } catch { return new Set(); }
+  if (typeof text !== "string" || !text) return defaultFilter();
+  try { const v = JSON.parse(text); return Array.isArray(v) ? normalizeFilter(v) : defaultFilter(); } catch { return defaultFilter(); }
 }
 
 /**

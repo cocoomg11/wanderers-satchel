@@ -21,7 +21,9 @@ test("filter model: normalize, toggle (multi-select), All resets, storage text",
   assert.deepEqual([...Fm.toggleFilter(f, "zzz")].sort(), ["bad", "warn"]);
   assert.equal(Fm.writeFilter(new Set(["bad", "ok"])), '["ok","bad"]');
   assert.deepEqual([...Fm.readFilter('["bad","ok"]')], ["bad", "ok"]);
-  for (const junk of ["", "{", "null", '{"a":1}', 42, null]) assert.equal(Fm.readFilter(junk).size, 0);
+  // 0.7.0: nothing stored or unreadable → the default (Warnings, Problems, Still checking); a stored [] is All.
+  for (const junk of ["", "{", "null", '{"a":1}', 42, null]) assert.deepEqual([...Fm.readFilter(junk)], ["warn", "bad", "pending"]);
+  assert.equal(Fm.readFilter("[]").size, 0); assert.equal(Fm.readFilter('["nope"]').size, 0);
 });
 
 test("filter model: chips keep the totals; Still checking / Not active only when there is one", () => {
