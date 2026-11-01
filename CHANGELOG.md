@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.5.0
+
+Help around module updates: what's out, what changed, a settings backup before and after, and Fix buttons in the health check. Each part has its own switch.
+
+### Added
+
+- **Update available x → y.** The Overview's update column and each module's page say *Update available 1.2.0 → 1.3.0*. A module without a manifest URL but with a GitHub project URL is checked against that repository's latest release. The Satchel checks itself too (a banner on the Overview). **Check now** checks again (the old *Check for updates*); the tile says when this browser last checked. Updates are still installed by you in Foundry's Setup screen; the Satchel never installs anything.
+- **Daily update check** (switch *Daily update check*, needs *Update check*): once a day per browser, when a GM loads the world, every module is checked and a notification says how many updates are out. Failures say nothing.
+- **What's new** (switch *What's new*): after a module's version changes, the GM sees a card on the Overview (and on that module's page) with its release notes for every version since the one last shown: from the module's changelog file, or from its GitHub releases when it names none. The notes are shown as simple formatted text (headings, lists, bold, code, links); nothing in them can add markup or scripts. **Dismiss** hides them until the next version. A module seen for the first time is recorded without a card.
+- **Settings backups** (switch *Settings backups*, needs *Settings export / import for all*): a copy of every active module's settings (the same file as Settings transfer › Export) is kept in a GM-only journal in the world, the last 5. One is taken when the update check finds new versions (once per set of updates), one on the first load after any module's version changed, one on the first load with this version, and any you take with **Back up now** (Overview card, update banner, *Settings backups* page). **Restore…** opens the import preview with that backup: you tick what goes back, as with a file. `api.backups` (`list`, `take`, `restore`).
+- **Health fix buttons** (switch *Health fix buttons*, needs *Combined health check*): a health line can carry a fix; the hub shows a **Fix** button on it (never on the chat card) and checks that module again after it runs. Modules opt in with a `fix` on the line and, for named actions, a `fixes` map in their registration (README, *Health lines with a fix*). Lines without a fix look as before.
+- **The Satchel's own health check** (a group in the combined report): whether its GM-only journal is hidden from players (Fix: *Make GM only*), backups kept (Fix: *Back up now*), modules whose update check failed (Fix: *Check again*), its debug logging (Fix: *Turn off*).
+
+### Changed
+
+- **`api.entries()` is GM only.** It returned the registration records to players' clients, and nothing outside the hub uses it there (the known modules only call `register()`). A player now gets the "GM only" notice and `undefined`. Each record also lists the module's fix action ids (`fixes`).
+- **Remove Satchel data** has a new category for the GM-only journal (off by default: it holds the backups), and *Kept in this browser* also clears the time of the last daily check.
+- **Red Book adapter**: `onlineHudCollapsed` and `nextSession` are on its skip list too (Red Book 0.4+ registers itself with its own list, which replaces the adapter).
+- The Satchel now writes one journal entry by itself (the GM-only journal, on the active GM's client only); before 0.5.0 it wrote nothing without a click.
+
+### Load order and its limits (settings backup after a version change)
+
+The backup after a version change reads every module's settings in Foundry's `setup` hook, the earliest moment settings can be read, and writes it in `ready`. Most modules run their migrations in their `ready` hook, so the backup has the settings from before those. It does not cover: changes a module makes in its `init` or `setup` hook, or in a `setup` hook that runs before the Satchel's; Foundry's own data migration (it runs before any module); modules that hand over their settings through their own export, since they register after `setup` (none of the built-in modules does). Those modules are in the next backup instead.
+
+### Untested in Foundry
+
+- Update check: a module with an update shows *Update available x → y* on the Overview and its page; **Check now** asks again; the tile hint says *checked … ago*; a module with no manifest but a GitHub project URL is checked; with the network off nothing but *Couldn't check* appears; the Satchel's own update banner.
+- Daily check: on a GM load the check runs once (a notification when updates are out), not on a second load the same day; not on a player's client; off when the switch is off.
+- What's new: change a module's version (install an older release, load once, then update): a card appears on the Overview and the module's page with the notes for the versions in between (from `CHANGELOG.md` served by Foundry, and for a module without one from GitHub releases); Dismiss hides it and it stays hidden after a reload; a second GM still sees it until they reload; nothing shows for a player. Notes with HTML or `javascript:` links show as text.
+- Backups: on the first load with 0.5.0 one backup is taken (the journal "Wanderer's Satchel (GM only)" appears, ownership None, not visible to a player); after an update the next load takes one before the updated module's `ready` migration (compare a setting a migration changes); Back up now; more than 5 drop the oldest; Restore opens the import preview with the backup's values and writes only what you tick; Delete asks first; with two GMs loading at once only one backup is taken.
+- Fix buttons: on the Health check page and a module page; the Satchel's own lines (make the journal visible to a player, press *Make GM only*: it asks, then the line turns ok); a registration with `fixes` and a line with `fix: "id"`; a fix that throws shows a warning; Space / Enter on a Fix button runs it once and doesn't pause.
+- `api.entries()` on a player's client returns undefined with the GM-only notice; on a GM's it lists `fixes`.
+- Remove Satchel data: the journal category counts 1 and deletes it; *Kept in this browser* clears the last-check time.
+- Both themes and a narrow hub (720 px): the What's new cards, the backups table and the Fix buttons.
+
 ## 0.4.1
 
 Two keyboard fixes from a live check, wanderers-core 0.3.1, and clearer descriptions.
