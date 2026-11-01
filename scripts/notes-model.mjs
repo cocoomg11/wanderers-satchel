@@ -149,3 +149,136 @@ export function markdownHtml(md) {
   const html = out.join("");
   return cut ? `${html}<p class="wc-hint">(Cut short. The full notes are in the module's changelog.)</p>` : html;
 }
+
+/**
+ * Developer-facing parts of release notes (0.7.0), as data so the rule is easy to read and to test. A section whose heading (any
+ * level, `## Tests`) or bold label line (`**Tests**`, `**Tests**: …`, `**Untested in Foundry** (…)`) matches `headings` goes to the
+ * developer notes, with everything under it up to the next heading of the same or a higher level (a label runs to the next label
+ * or heading). A bullet whose text starts with one of `bullets` followed by ":" (`- Under the hood: …`) goes there too, with its
+ * indented lines. Everything else is the GM-facing summary. Matching ignores case, bold/italic/code marks and trailing
+ * punctuation.
+ */
+export const DEV_NOTES = Object.freeze({
+  headings: Object.freeze([
+    /^under the hood\b/i, /^(for )?developers?\b/i, /^developer notes\b/i, /^for other modules\b/i, /^internals?\b/i, /^technical\b/i,
+    /^tests?\b/i, /^testing\b/i, /^ci\b/i, /^untested\b/i, /^live (test )?checklist\b/i, /^not (yet )?tested\b/i, /^decisions\b/i,
+    /^migration\b/i, /^load order\b/i
+  ]),
+  bullets: Object.freeze([/^under the hood$/i, /^(for )?developers?$/i, /^tests?$/i, /^ci$/i, /^internals?$/i, /^technical$/i, /^untested( in foundry)?$/i])
+});
+
+/** Heading or label text without Markdown marks: "**Untested in Foundry** (live)" → "Untested in Foundry (live)". @param {string} s */
+const bare = s => String(s ?? "").replace(/[*_`]/g, "").trim();
+/** @param {string} text @param {readonly RegExp[]} rules */
+const matches = (text, rules) => rules.some(r => r.test(bare(text)));
+/** A bold label line ("**Fixed**", "**Tests**: …", "**Untested in Foundry** (…)"): its label, else null. @param {string} line */
+const labelOf = line => { const m = /^\*\*([^*]+?)\*\*(?=\s*$|\s*[:(]|:)/.exec(line); return m ? m[1] : null; };
+
+/**
+ * One version's notes split into what a GM reads and what a developer reads: { summary, developer } (both Markdown, trimmed;
+ * either may be empty). See DEV_NOTES. Notes without developer headings come back unchanged as the summary.
+ * @param {string} md
+ * @param {{ headings: readonly RegExp[], bullets: readonly RegExp[] }} [rules]
+ */
+export function splitNotes(md, rules = DEV_NOTES) {
+  const lines = String(md ?? "").replace(/\r\n?/g, "\n").split("\n");
+  /** @type {string[]} */ const user = []; /** @type {string[]} */ const dev = [];
+  /** @type {number | null} level of the developer heading we are under */ let devLevel = null;
+  let labelDev = false; let bulletDev = false;
+  for (const line of lines) {
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (h) {
+      const level = h[1].length; bulletDev = false; labelDev = false;
+      if (devLevel !== null && level <= devLevel) devLevel = null;
+      if (devLevel === null && matches(h[2].replace(/\s+#+\s*$/, ""), rules.headings)) devLevel = level;
+      (devLevel !== null ? dev : user).push(line); continue;
+    }
+    const label = labelOf(line);
+    if (label !== null) { bulletDev = false; labelDev = matches(label, rules.headings); (devLevel !== null || labelDev ? dev : user).push(line); continue; }
+    const li = /^(\s*)[-*+]\s+(.*)$/.exec(line);
+    if (li) {
+      if (!li[1].length) { const lead = /^(?:\*\*|__)?([^:*_]{1,40}?)(?:\*\*|__)?\s*:/.exec(li[2]); bulletDev = !!lead && matches(lead[1], rules.bullets); }
+    } else if (line.trim() && !/^\s{2,}\S/.test(line)) bulletDev = false;
+    (devLevel !== null || labelDev || bulletDev ? dev : user).push(line);
+  }
+  const tidy = (/** @type {string[]} */ a) => a.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // A summary left with nothing but headings (every bullet under them was developer notes) is empty.
+  const summary = tidy(user);
+  return { summary: summary.split("\n").every(l => !l.trim() || /^#{1,6}\s/.test(l) || labelOf(l) !== null) ? "" : summary, developer: tidy(dev) };
+}
+
+/** Longest a shortened bullet gets (characters of Markdown) before it is cut at a word. */
+export const SHORT_BULLET_CHARS = 220;
+
+/**
+ * The first sentence of a bullet's text: up to the first ". " (or "! ", "? ") outside `code` and (brackets) that is followed by a
+ * capital, a mark or a digit; at most SHORT_BULLET_CHARS, cut at a word with "…". Text without such an end is kept whole (up to the
+ * limit).
+ * @param {string} text
+ */
+export function firstSentence(text) {
+  const t = String(text ?? "").trim();
+  let code = false; let depth = 0; let end = t.length;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (c === "`") code = !code;
+    else if (code) continue;
+    else if (c === "(" || c === "[") depth++;
+    else if ((c === ")" || c === "]") && depth) depth--;
+    else if (!depth && (c === "." || c === "!" || c === "?") && !/\b(e\.g|i\.e|etc|vs)$/i.test(t.slice(Math.max(0, i - 4), i))) {
+      // Closing marks right after the stop belong to the sentence ("**Board.** Next" ends after "**").
+      const close = /^(\*\*|__|\*|_)?/.exec(t.slice(i + 1))?.[0] ?? "";
+      if (/^\s+[A-Z*_`"\d]/.test(t.slice(i + 1 + close.length, i + 4 + close.length))) { end = i + 1 + close.length; break; }
+    }
+  }
+  let out = t.slice(0, end);
+  if (out.length > SHORT_BULLET_CHARS) {
+    out = out.slice(0, SHORT_BULLET_CHARS).replace(/\s+\S*$/, "");
+    // Don't leave a code span or bold mark open.
+    if ((out.match(/`/g) ?? []).length % 2) out = out.replace(/`[^`]*$/, "");
+    if ((out.match(/\*\*/g) ?? []).length % 2) out += "**";
+    out = `${out.replace(/[\s,;:(]+$/, "")}…`;
+  }
+  return out;
+}
+
+/**
+ * The GM-facing summary made short: top-level bullets cut to their first sentence (firstSentence), their nested bullets and
+ * continuation lines left out, everything else (intro lines, headings, labels) kept. { text, shortened }: `shortened` says whether
+ * anything was left out (the full summary is then worth offering).
+ * @param {string} md a summary from splitNotes
+ */
+export function shortSummary(md) {
+  /** @type {string[]} */ const out = []; let shortened = false;
+  /** @type {string | null} the open top-level bullet's text (wrapped lines joined) */ let bullet = null; let nested = false;
+  const close = () => { if (bullet === null) return; const s = firstSentence(bullet); if (s !== bullet.trim()) shortened = true; out.push(`- ${s}`); bullet = null; nested = false; };
+  for (const line of String(md ?? "").split("\n")) {
+    const li = /^([-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)$/.exec(line);
+    if (li) { close(); bullet = li[2]; continue; }
+    if (bullet !== null && /^\s+\S/.test(line)) {
+      // A nested bullet (and what follows it) is detail: left out. A wrapped line of the bullet itself joins it.
+      if (/^\s+(?:[-*+]|\d+[.)])\s/.test(line)) nested = true;
+      if (nested) shortened = true; else bullet += ` ${line.trim()}`;
+      continue;
+    }
+    close(); out.push(line);
+  }
+  close();
+  return { text: out.join("\n").trim(), shortened };
+}
+
+/**
+ * The notes of one version as HTML for the GM (0.7.0): a short summary (top-level bullets to their first sentence), then, folded
+ * in closed <details>: "Full notes" (the whole GM-facing part, when the summary left something out) and "Developer notes" (the
+ * sections splitNotes moved out). Everything escaped as markdownHtml does. Notes without developer headings and with short bullets
+ * read exactly as before.
+ * @param {string} md
+ */
+export function notesHtml(md) {
+  const { summary, developer } = splitNotes(md);
+  const short = shortSummary(summary);
+  const top = short.text ? markdownHtml(short.text) : developer ? `<p class="wc-hint">Nothing you would notice at the table: only developer notes in this version.</p>` : "";
+  const full = short.shortened ? `<details class="ws-notes-more"><summary>Full notes</summary>${markdownHtml(summary)}</details>` : "";
+  const fold = developer ? `<details class="ws-notes-more ws-dev-notes"><summary>Developer notes</summary>${markdownHtml(developer)}</details>` : "";
+  return top + full + fold;
+}

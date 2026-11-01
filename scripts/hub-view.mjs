@@ -9,7 +9,7 @@ import { esc, plural } from "./const.mjs";
 import { UI_CLASSES, TONES, tone, icon as coreIcon, badge as coreBadge, dot, statusLine, navItem } from "../vendor/wanderers-core/index.mjs";
 import { preview } from "./settings-model.mjs";
 import { filterChips, applyFilter, hiddenText } from "./filter-model.mjs";
-import { markdownHtml } from "./notes-model.mjs";
+import { notesHtml } from "./notes-model.mjs";
 
 /** The root classes for markup outside a Satchel window (the chat card). */
 export const ROOT = UI_CLASSES.join(" ");
@@ -266,7 +266,7 @@ export function windowsHtml() {
 
 /**
  * The "What's new" cards (Overview and the module's own page): per module its release notes for the versions since a GM last saw
- * it, as safe HTML (notes-model markdownHtml), with Dismiss. Empty string when there are none.
+ * it, as safe HTML (notes-model notesHtml: a GM-facing summary, developer sections folded), with Dismiss. Empty string when there are none.
  * @param {ReturnType<typeof import("./hub-model.mjs").whatsNewModel>} list
  */
 export function whatsNewHtml(list) {
@@ -276,7 +276,7 @@ export function whatsNewHtml(list) {
     const body = n.state === "loading" ? `<p class="wc-hint">${icon("pending")}Reading the release notes…</p>`
       : n.state === "error" ? `<p class="wc-hint">The release notes couldn't be read (${esc(n.error ?? "unknown error")}).${n.changelog ? " The Changelog button opens them." : ""}</p>`
         : !n.notes.length ? `<p class="wc-hint">No release notes for ${n.from ? "these versions" : "this version"}.</p>`
-          : n.notes.map((/** @type {any} */ x) => `<section class="ws-news-version"><h4>${esc(x.title && x.title !== x.version ? x.title : x.version)}</h4><div class="ws-news-body">${markdownHtml(x.body) || `<p class="wc-hint">(no notes)</p>`}</div></section>`).join("");
+          : n.notes.map((/** @type {any} */ x) => `<section class="ws-news-version"><h4>${esc(x.title && x.title !== x.version ? x.title : x.version)}</h4><div class="ws-news-body">${notesHtml(x.body) || `<p class="wc-hint">(no notes)</p>`}</div></section>`).join("");
     return `<section class="wc-panel ws-news" aria-label="What's new in ${esc(n.title)}"><header class="wc-panel-head"><h3><i class="fa-solid fa-gift" aria-hidden="true"></i> What's new in ${esc(n.title)} <span class="wc-hint">${range}</span></h3><span class="wc-grow"></span>${n.changelog ? button("changelog", "Changelog", { small: true, data: { id: n.id } }) : ""}${button("dismissNews", "Dismiss", { small: true, icon: "fa-solid fa-check", data: { id: n.id } })}</header><div class="wc-panel-body ws-news-scroll">${body}</div></section>`;
   }).join("")}</div>`;
 }

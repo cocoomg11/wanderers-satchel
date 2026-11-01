@@ -134,5 +134,10 @@
 .ws-hub .ws-news-body h4, .ws-hub .ws-news-body h5 { margin: 0.5em 0 0.2em; border: none; font-size: var(--font-size-13, 0.8125rem); color: var(--wc-text-2); }
 .ws-hub .ws-news-body p, .ws-hub .ws-news-body ul { margin: 0.2em 0; }
 .ws-hub .ws-news-body ul { padding-left: 1.3em; }
+/* 0.7.0: release notes fold the full text and developer notes */
+.ws-hub .ws-notes-more { margin-top: 4px; }
+.ws-hub .ws-notes-more > summary { cursor: pointer; color: var(--wc-text-2); font-size: var(--font-size-12, 0.75rem); }
+.ws-hub .ws-notes-more > summary:focus-visible { outline: 2px solid var(--wc-accent); outline-offset: 1px; }
+.ws-hub .ws-notes-more[open] > summary { margin-bottom: 2px; }
 .ws-hub .ws-fix { flex: none; margin-left: 8px; }
 .ws-hub .ws-actions-cell { width: 1%; white-space: nowrap; }
