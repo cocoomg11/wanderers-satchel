@@ -63,6 +63,31 @@ export function createRouter(ctx, initial = "overview") {
 export const navOrder = nav => ["overview", ...nav.modules.map(m => m.page), ...nav.tools.map(t => t.page)];
 
 /**
+ * What a key does on a health filter chip: "toggle" (Space or Enter pressed), "swallow" (Space released: cancel the browser's click so
+ * it does not toggle twice), null for any other key. Space / Enter are always kept from Foundry's keybindings.
+ * @param {string} type "keydown" or "keyup" @param {string} key
+ * @returns {"toggle" | "swallow" | null}
+ */
+export function chipKey(type, key) {
+  const space = key === " " || key === "Spacebar";
+  if (type === "keydown") return space || key === "Enter" ? "toggle" : null;
+  if (type === "keyup") return space ? "swallow" : null;
+  return null;
+}
+
+/**
+ * Handles a key event on a health filter chip: for Space / Enter (and Space's release) it cancels the default and stops the event so
+ * Foundry's keybindings never see it, and calls `toggle` once per press (not on auto-repeat, not on release). Returns whether it handled the event.
+ * @param {{ type: string, key: string, repeat?: boolean, preventDefault(): void, stopPropagation(): void }} ev @param {() => void} toggle
+ */
+export function handleChipKey(ev, toggle) {
+  const act = chipKey(ev.type, ev.key); if (!act) return false;
+  ev.preventDefault(); ev.stopPropagation();
+  if (act === "toggle" && !ev.repeat) toggle();
+  return true;
+}
+
+/**
  * Where a key press moves the sidebar focus: ArrowDown / ArrowUp (wrapping), Home, End. null for other keys.
  * @param {string[]} order
  * @param {string} current

@@ -136,7 +136,10 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   _replaceHTML(result, content) {
     const top = content.querySelector(".wc-main")?.scrollTop ?? 0;
     const same = this._lastPage === this.router.page; this._lastPage = this.router.page;
+    // Focus rule: a keyboard user who opened a page from the sidebar stays on the sidebar (on the link of the page now shown).
+    const fromNav = !!(/** @type {HTMLElement | null} */ (document.activeElement))?.closest?.(".wc-side .wc-nav") && content.contains(document.activeElement);
     content.replaceChildren(result);
+    if (fromNav) /** @type {HTMLElement | null} */ (content.querySelector(`.wc-side .wc-nav[data-page="${CSS.escape(this.router.page)}"]`) ?? content.querySelector(".wc-side .wc-nav"))?.focus({ preventScroll: true });
     const main = /** @type {HTMLElement | null} */ (content.querySelector(".wc-main"));
     if (main && same) main.scrollTop = top;
     this.#fillHealth();
@@ -147,6 +150,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     const el = this.element;
     el.addEventListener("change", (/** @type {Event} */ ev) => this.#onChange(ev));
     el.addEventListener("keydown", (/** @type {KeyboardEvent} */ ev) => this.#onKey(ev));
+    el.addEventListener("keyup", (/** @type {KeyboardEvent} */ ev) => this.#onKeyUp(ev));
   }
 
   /**
@@ -234,7 +238,13 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   }
   /** Sidebar: arrow keys, Home, End move between links (roving focus). @param {KeyboardEvent} ev */
   #onKey(ev) {
-    const t = /** @type {HTMLElement} */ (ev.target); if (!t?.classList?.contains("wc-nav")) return;
+    const t = /** @type {HTMLElement} */ (ev.target);
+    if (t?.classList?.contains("ws-filter")) {
+      // Space / Enter on a filter chip: toggle here and keep the key from Foundry's own keybindings (Space pauses the game).
+      HM.handleChipKey(ev, () => HubApp.#onFilter.call(this, /** @type {any} */ (ev), t));
+      return;
+    }
+    if (!t?.classList?.contains("wc-nav")) return;
     const links = [...this.element.querySelectorAll(".wc-side .wc-nav")].map(x => /** @type {HTMLElement} */ (x));
     const next = HM.moveFocus(links.map(x => x.dataset.page ?? ""), t.dataset.page ?? "", ev.key); if (!next) return;
     ev.preventDefault();
@@ -243,11 +253,16 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     to.focus();
   }
 
+  /** Space released on a filter chip: cancel the browser's click and keep it from Foundry. @param {KeyboardEvent} ev */
+  #onKeyUp(ev) {
+    const t = /** @type {HTMLElement} */ (ev.target);
+    if (t?.classList?.contains("ws-filter")) HM.handleChipKey(ev, () => {});
+  }
+
   /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
   static #onNav(_ev, target) {
     if (!game.user?.isGM) return;
     this.go(target.dataset.page ?? "overview");
-    /** @type {HTMLElement | null} */ (this.element.querySelector(".wc-main"))?.focus({ preventScroll: true });
   }
   /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
   static #onPanel(_ev, target) { if (game.user?.isGM) Reg.openPanel(target.dataset.id); }

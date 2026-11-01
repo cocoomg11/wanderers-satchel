@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.1
+
+Two keyboard fixes from a live check, wanderers-core 0.3.1, and clearer descriptions.
+
+### Changed
+
+- **wanderers-core 0.3.1** (shared look revision 2). The Satchel's own copy of the short-window fix is removed; core's stylesheet does it now.
+- **Descriptions.** The module description and the README intro say what the Satchel does today: overview, a page per module, combined health check with filters, settings transfer, maintenance, native Foundry look.
+
+### Fixed
+
+- **Space on a health filter chip paused the game.** Space did not toggle the chip and reached Foundry's own Space key (pause). Space and Enter now both toggle the chip and are kept from Foundry's keybindings; holding the key does not flicker it.
+- **Focus was lost after opening a page with Enter in the sidebar.** Focus fell to the page body. It now stays on the sidebar link of the page you opened, so the arrow keys keep working.
+
+### Untested in Foundry
+
+- Tab to a filter chip (Health check page and a module page) and press Space: the chip toggles once and the game does not pause. Same with Enter. Holding Space does not flicker the chip. Mouse click still works. In Firefox and Chrome.
+- Space or Enter on a chip while results are still coming in: focus stays on the chip.
+- Arrow to a sidebar link and press Enter: the page opens and focus stays on that link (also for a module page, Health check, Settings transfer, Maintenance); arrows still move between links; clicking a link with the mouse also leaves it focused.
+- No 404 for `vendor/wanderers-core/styles/wanderers-ui.css`; the hub at 640x720 and 1000x450 still shows the module table at full height (now core's rule); both themes.
+- The module list in Foundry's Manage Modules shows the new description.
+
 ## 0.4.0
 
 A filter for the health check, three fixes from a live retest, and the shared look of wanderers-core.

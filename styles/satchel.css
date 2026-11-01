@@ -9,12 +9,6 @@
 .ws-window .window-content { font-family: var(--font-body, inherit); }
 .ws-window code { font-family: var(--wc-mono); font-size: var(--font-size-12, 0.75rem); background: none; border: none; padding: 0; }
 
-/*
- * Short or narrow hub (core 0.3.0, revision 1): the page column is a scrolling flexbox whose children could shrink, so the module
- * table box collapsed to a few pixels. Core 0.3.1 (revision 2) fixes it in the shared stylesheet; drop this rule after moving to it.
- */
-.ws-hub .wc-main > * { flex-shrink: 0; }
-
 /* ---------------------------------------------------------------- overview */
 .ws-hub .wc-stats, .ws-hub .ws-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ws-hub .ws-stat-level { display: inline-flex; align-items: center; gap: 7px; }

@@ -1,6 +1,14 @@
 # Wanderer's Satchel
 
-A small GM hub for [Foundry VTT](https://foundryvtt.com) (v13 and v14, any game system) that keeps your other modules in one place: an overview of every module (version, whether it's active, whether an update is out, its last health check) and a page per module with buttons that open its own control panel, health check, docs and issue page, plus a combined health check, one-file settings export / import for all of them and one Debug logging switch.
+A GM hub for [Foundry VTT](https://foundryvtt.com) (v13 and v14, any game system) that keeps your other modules in one window:
+
+- an **overview** of every module (version, whether it's active, whether an update is out, its last health check);
+- a **page per module** with buttons that open its own control panel, health check, docs and issue page;
+- a **combined health check** with filters for warnings and problems;
+- **settings transfer**: one file with every module's settings, with a preview before anything is written;
+- **maintenance** (one Debug logging switch, removing the Satchel's own data).
+
+It looks like the rest of Foundry (light or dark theme) through a shared stylesheet from [wanderers-core](https://github.com/cocoomg11/wanderers-core).
 
 The Satchel only opens and reads; every module keeps its own settings and windows and works the same without it. Other modules can join through a [registration API](#public-api-and-hooks).
 
@@ -170,7 +178,7 @@ Hooks.once("ready", () => {
 
 ## Built with wanderers-core
 
-The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.3.0) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels, the settings file format and its checks, version compare, the REMOVE confirmation and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
+The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.3.1) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels, the settings file format and its checks, version compare, the REMOVE confirmation and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
 
 ## Install
 

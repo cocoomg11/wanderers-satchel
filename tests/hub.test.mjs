@@ -219,3 +219,35 @@ test("module page health panel: the same filter", () => {
   assert.match(bad, /No lines match the filter/);
   assert.ok(View.moduleHtml(model).includes(">fine<"));
 });
+
+// ---------------------------------------------------------------- filter chip keys
+const fakeKey = (type, key, repeat = false) => ({ type, key, repeat, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } });
+
+test("chipKey: Space and Enter toggle on press, Space release is swallowed, other keys ignored", () => {
+  assert.equal(HM.chipKey("keydown", " "), "toggle");
+  assert.equal(HM.chipKey("keydown", "Enter"), "toggle");
+  assert.equal(HM.chipKey("keyup", " "), "swallow");
+  assert.equal(HM.chipKey("keyup", "Enter"), null);
+  assert.equal(HM.chipKey("keydown", "a"), null);
+  assert.equal(HM.chipKey("keydown", "Tab"), null);
+});
+
+test("handleChipKey: Space / Enter toggle once, never reach Foundry (default cancelled, propagation stopped)", () => {
+  for (const key of [" ", "Enter"]) {
+    let n = 0; const down = fakeKey("keydown", key);
+    assert.equal(HM.handleChipKey(down, () => n++), true);
+    assert.equal(n, 1); assert.ok(down.prevented && down.stopped);
+  }
+  // Space released: no second toggle, but the browser's click and Foundry both blocked.
+  let n = 0; const up = fakeKey("keyup", " ");
+  assert.equal(HM.handleChipKey(up, () => n++), true);
+  assert.equal(n, 0); assert.ok(up.prevented && up.stopped);
+  // Holding the key does not flicker the chip, but still stays away from Foundry.
+  const rep = fakeKey("keydown", " ", true);
+  HM.handleChipKey(rep, () => n++);
+  assert.equal(n, 0); assert.ok(rep.prevented && rep.stopped);
+  // Other keys pass through untouched (Tab must still move focus).
+  const tab = fakeKey("keydown", "Tab");
+  assert.equal(HM.handleChipKey(tab, () => n++), false);
+  assert.ok(!tab.prevented && !tab.stopped && n === 0);
+});
