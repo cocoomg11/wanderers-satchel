@@ -93,6 +93,16 @@ function dataFolderRows() {
   return out;
 }
 
+/** The Maintenance page's "Opening the Satchel" panel: this browser's scene button switch and the open key as text. */
+function browserState() {
+  /** @type {string} */ let key = "";
+  try {
+    const b = /** @type {any[]} */ (game.keybindings.get(ID, "open") ?? []);
+    key = b.map(x => [...(x.modifiers ?? []), String(x.key ?? "").replace(/^Key(?=[A-Z]$)|^Digit(?=\d$)/, "")].join("+")).join(", ");
+  } catch { }
+  return { sceneButton: F.on("sceneButton") ? S.get("showSceneButton") !== false : null, key };
+}
+
 // ---------------------------------------------------------------- the window
 const safe = (/** @type {() => unknown} */ fn) => { try { return !!fn(); } catch { return false; } };
 const features = () => ({ updateCheck: F.on("updateCheck"), combinedHealth: F.on("combinedHealth"), sharedSettings: F.on("sharedSettings"), debugAll: F.on("debugAll"), settingsBackup: F.on("settingsBackup"), whatsNew: F.on("whatsNew"), healthFixes: F.on("healthFixes") });
@@ -229,7 +239,7 @@ export class HubApp extends RememberedWindow(foundry.applications.api.Applicatio
       case "health": return View.healthPageHtml();
       case "backups": return View.backupsHtml(HM.backupsModel(d.backups, d.now, (/** @type {number} */ at) => new Date(at).toLocaleString()), { error: Life.backupError(), busy: this.busy });
       case "transfer": return View.transferHtml({ tab: this.tabGroups.transfer ?? "export", error: this.imp.error, file: this.imp.file, result: this.imp.result, model: this.imp.result ? HM.importModel(this.imp.result, this.imp.ticks) : null });
-      case "maintenance": return View.maintenanceHtml(Cleanup.counts(), /** @type {[string, string][]} */ (Cleanup.CATEGORIES), Cleanup.CONFIRM_WORD, { dataFolder: HM.dataFolderModel(dataFolderRows(), ID) });
+      case "maintenance": return View.maintenanceHtml(Cleanup.counts(), /** @type {[string, string][]} */ (Cleanup.CATEGORIES), Cleanup.CONFIRM_WORD, { dataFolder: HM.dataFolderModel(dataFolderRows(), ID), browser: browserState() });
       default: return View.overviewHtml(HM.overviewModel({ items: d.items, updates, health: d.health, features: d.features, debug: d.debug, now: d.now, backups: d.backups }), { updateCheck: d.features.updateCheck, combinedHealth: d.features.combinedHealth, id: ID, checkedHint: checkedHint(d.now), whatsNew: View.whatsNewHtml(d.news), selfUpdate: updates.get(ID) ?? null });
     }
   }
@@ -258,6 +268,11 @@ export class HubApp extends RememberedWindow(foundry.applications.api.Applicatio
       const r = debugState().rows.find((/** @type {any} */ x) => x.id === t.dataset.id); if (!r) return;
       try { await game.settings.set(r.namespace, r.key, t.checked); log(`debug ${r.id} ${t.checked}`); } catch (e) { console.warn(`${ID} | debug ${r.id}`, e); }
       this.refresh(); return;
+    }
+    if (kind === "showSceneButton") {
+      // This browser only (client setting); its onChange redraws the scene controls.
+      try { await S.set("showSceneButton", t.checked); } catch (e) { console.warn(`${ID} | showSceneButton`, e); }
+      return;
     }
     if (kind === "showModuleData") {
       // Our own switch only (client setting, this browser); its onChange redraws the Journal sidebar. Other modules' switches

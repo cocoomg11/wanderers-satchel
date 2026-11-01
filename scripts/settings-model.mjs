@@ -56,8 +56,8 @@ const BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
  * and import, whatever its adapter or registration lists (0.6.0).
  */
 export const CORE_RECORDS = ["showModuleData", "windowPlacement"];
-/** Our own settings that are bookkeeping, never moved between worlds. */
-export const OWN_SKIP = [...CORE_RECORDS];
+/** Our own settings that are bookkeeping or a per-browser choice (0.7.0: `showSceneButton`), never moved between worlds. */
+export const OWN_SKIP = [...CORE_RECORDS, "showSceneButton"];
 /**
  * The keys left out of an entry's settings export and import: its own skip list plus `CORE_RECORDS`.
  * @param {{ skipSettings?: string[] } | null | undefined} entry

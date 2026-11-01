@@ -58,7 +58,7 @@ The Satchel only opens and reads; every module keeps its own settings and window
 ## Quick start
 
 1. Install and enable the module in your world (see [Install](#install)).
-2. Open it: **Game Settings › Wanderer's Satchel › Open the Satchel**, the bag button in the token controls, or the button in the Settings sidebar tab. You can also give it a key under **Configure Controls** (none is set by default).
+2. Open it: **Game Settings › Wanderer's Satchel › Open the Satchel**, the bag button in the token controls, or the button in the Settings sidebar tab. Or press **Shift+G** (change it under **Configure Controls**, *Open Wanderer's Satchel*).
 3. The **Overview** lists every module. Each row's **Open** button (named after the window, such as *Control panel* or *Tools window*) opens that module's own main window; the sidebar (or the row's arrow) opens its page in the Satchel. **Check everything** runs one health report for all.
 
 <!-- screenshot: the hub window, overview -->
@@ -67,7 +67,7 @@ The Satchel only opens and reads; every module keeps its own settings and window
 
 ### The hub window
 
-GM only. A window (about 1000 px wide, resizable) with a sidebar on the left and the page on the right. The Settings menu, the key binding (*Open Wanderer's Satchel* in Configure Controls; no key by default), the token-controls button and the Settings sidebar button all open it on **Overview**. It opens where you last left it, at the same size (per browser; the health check window too); *Maintenance › Reset window positions* forgets that. In a narrow window the sidebar becomes a strip of links above the page.
+GM only. A window (about 1000 px wide, resizable) with a sidebar on the left and the page on the right. The Settings menu, the key binding (*Open Wanderer's Satchel* in Configure Controls; **Shift+G** by default since 0.7.0), the token-controls button and the Settings sidebar button all open it on **Overview**. It opens where you last left it, at the same size (per browser; the health check window too); *Maintenance › Reset window positions* forgets that. In a narrow window the sidebar becomes a strip of links above the page.
 
 **Sidebar:** *Overview*; *Modules*, one link per module the Satchel knows (the ones it recognises when installed (see [The Wanderer's family](#the-wanderers-family)), and any module that registered itself) with a status dot (the worst result of its last health check since the page loaded; hollow when not active or not checked yet) and a count of its warnings and problems; *Tools*: Health check, Settings transfer, Maintenance; the Satchel's version at the bottom. Inactive modules are dimmed. The arrow keys, Home and End move between links; Enter opens one.
 
@@ -133,6 +133,8 @@ When at least one module has a known Debug logging setting, the Overview shows o
 
 **Module data folder.** Wanderer's modules keep their GM-only journals together in one journal folder, *Module data*, which is hidden from the Journal sidebar. **Show module data folder** shows it in this browser. Each module has a switch of its own, and the folder shows when any one of them is on, so the page also lists the other modules' switches as set in this browser (read only: change them in that module's settings). This only tidies the sidebar. It hides nothing from players.
 
+**Opening the Satchel** (0.7.0). **Button in the token controls** shows or hides the bag button in this browser (the world switch *Scene control button* turns it off for everyone). The panel also shows the key in use (default **Shift+G**; change it in Configure Controls).
+
 **Window positions.** **Reset window positions** forgets where the hub and the health check window were left in this browser; they open at the default place and size next time.
 
 ## Settings
@@ -149,11 +151,11 @@ World settings (Game Settings › Wanderer's Satchel). The feature switches each
 | Feature: Settings export / import for all | on | no Settings transfer page |
 | Feature: Health fix buttons | on | health lines show without Fix buttons |
 | Feature: Debug logging for all | on | no switch |
-| Feature: Scene control button | on | no bag button in the token controls |
+| Feature: Scene control button | on | no bag button in the token controls for anyone (each GM can also hide it in their own browser, see below) |
 
 Also **Debug logging** (world, off): writes health check timings, update checks and imports to the browser console. It isn't in Configure Settings; **Debug logging for all** in the hub switches it with the others.
 
-Per browser (not in Configure Settings): **Show module data folder** (off; on the Maintenance page) and the remembered window positions. Neither is ever exported or imported, for the Satchel or for any other module.
+Per browser (not in Configure Settings): **Button in the token controls** (on; Maintenance › Opening the Satchel; 0.7.0), **Show module data folder** (off; on the Maintenance page) and the remembered window positions. The last two are never exported or imported, for the Satchel or for any other module.
 
 ## Troubleshooting
 
@@ -171,7 +173,7 @@ The *Maintenance* page (also **Remove Satchel data…** on the Overview) counts 
 
 The Satchel keeps these things:
 
-- Its own settings (the feature switches and Debug logging) and two per-browser settings: whether the Module data folder is shown, and where the windows were left.
+- Its own settings (the feature switches and Debug logging) and three per-browser settings: whether the token controls button and the Module data folder are shown, and where the windows were left.
 - The health report chat cards it whispers to GMs.
 - A hidden GM journal, *Wanderer's Satchel (GM only)*, in the shared *Module data* folder. It holds the settings backups (at most 5, each at most 1 MB), the module versions last shown in What's new and the bookkeeping for automatic backups. It is made by the first automatic write on the active GM's client (or the first backup or dismissal). **Not secrecy:** it is kept out of players' sidebars and windows, but Foundry still sends it to players' browsers (checked on Foundry 14). Deleting it loses the backups.
 - The shared *Module data* folder, when the first journal is filed. Remove Satchel data deletes it only when nothing else is in it.

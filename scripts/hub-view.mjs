@@ -237,10 +237,11 @@ export const footerHtml = model => `<span class="wc-hint">${esc(model.hint)}</sp
 /**
  * The Maintenance page: the "Module data folder" switch (this browser), window positions, and Remove Satchel data.
  * @param {Record<string, number>} counts @param {[string, string][]} categories @param {string} word
- * @param {{ dataFolder?: ReturnType<typeof import("./hub-model.mjs").dataFolderModel> | null }} [o]
+ * @param {{ dataFolder?: ReturnType<typeof import("./hub-model.mjs").dataFolderModel> | null, browser?: { sceneButton: boolean | null, key: string } | null }} [o]
+ *   browser (0.7.0): the "Opening the Satchel" panel: the scene button switch (null when the feature is off) and the key text
  */
-export function maintenanceHtml(counts, categories, word, { dataFolder = null } = {}) {
-  return `${pageHead("Maintenance")}${dataFolder ? dataFolderHtml(dataFolder) : ""}${windowsHtml()}<section class="wc-panel ws-pad"><form class="ws-cleanup" data-part="cleanup" autocomplete="off">
+export function maintenanceHtml(counts, categories, word, { dataFolder = null, browser = null } = {}) {
+  return `${pageHead("Maintenance")}${browser ? browserHtml(browser) : ""}${dataFolder ? dataFolderHtml(dataFolder) : ""}${windowsHtml()}<section class="wc-panel ws-pad"><form class="ws-cleanup" data-part="cleanup" autocomplete="off">
     <h3><i class="fa-solid fa-broom" aria-hidden="true"></i> Remove Satchel data</h3>
     <p>Removes what the Satchel stored. The counts are what would go now (a dry run); nothing changes until you confirm. Other modules' settings and data are never touched, including debug settings the <em>Debug logging for all</em> switch turned on (turn them off on the overview first if you want).</p>
     ${categories.map(([k, label]) => `<div class="form-group"><label class="ws-check wc-grow"><input type="checkbox" name="${esc(k)}" ${k === "settings" || k === "store" ? "" : "checked"}> ${esc(label)}</label>${badge(counts[k] ? "info" : "off", String(counts[k] ?? 0), { title: "Would be removed now" })}</div>`).join("")}
@@ -269,6 +270,20 @@ export function dataFolderHtml(m) {
     <p class="wc-hint">Each module has a switch of its own (in its settings), and the folder shows when any one is on. Theirs, as set in this browser:</p>
     ${others}
     <p class="wc-hint" data-part="folder-state">${esc(state)}</p>
+  </section>`;
+}
+
+/**
+ * The "Opening the Satchel" panel (0.7.0): this browser's scene control button switch (client setting `showSceneButton`) and the
+ * key binding in use. `sceneButton`: null when the world's Scene control button feature is off.
+ * @param {{ sceneButton: boolean | null, key: string }} b
+ */
+export function browserHtml(b) {
+  const sw = b.sceneButton === null ? `<p class="wc-hint">The token controls button is off for this world (feature <em>Scene control button</em>).</p>`
+    : `<label class="ws-check"><input type="checkbox" data-change="showSceneButton" ${b.sceneButton ? "checked" : ""}> Button in the token controls <span class="wc-hint">· this browser</span></label>`;
+  return `<section class="wc-panel ws-pad ws-maint" aria-labelledby="ws-open-h"><h3 id="ws-open-h"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i> Opening the Satchel</h3>
+    ${sw}
+    <p class="wc-hint">Key: <kbd>${esc(b.key || "none")}</kbd> · change it in Configure Controls (<em>Open Wanderer's Satchel</em>).</p>
   </section>`;
 }
 

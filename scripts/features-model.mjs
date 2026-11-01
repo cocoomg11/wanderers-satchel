@@ -13,7 +13,7 @@ export const FEATURE_LIST = [
   { id: "sharedSettings", label: "Settings export / import for all", hint: "Save the settings of every module in the Satchel to one JSON file and load them back, with a preview of what would change." },
   { id: "healthFixes", label: "Health fix buttons", hint: "Health lines that a module can repair itself show a Fix button. Off: the lines show without it.", needs: ["combinedHealth"] },
   { id: "debugAll", label: "Debug logging for all", hint: "One switch that turns each module's own Debug logging setting on or off." },
-  { id: "sceneButton", label: "Scene control button", hint: "A Wanderer's Satchel button in the token controls (GM only)." }
+  { id: "sceneButton", label: "Scene control button", hint: "A Wanderer's Satchel button in the token controls (GM only). Each GM can hide it in their own browser (client setting Scene control button in this browser)." }
 ];
 
 /** Our own settings besides the feature switches (registered with config: false; shown in the hub). */
@@ -22,5 +22,7 @@ export const SETTING_ROWS = [
   { key: "debugLog", type: "bool", default: false, label: "Debug logging", hint: "Writes what Wanderer's Satchel does (health check timings, update checks, imports) to the browser console (F12). Part of Debug logging for all." },
   // 0.6.0: core's "Module data" journal folder (GM-only store journals) is hidden from the Journal sidebar unless this is on, or
   // any other module's own `showModuleData` is. Per browser; switched on the hub's Maintenance page.
+  // 0.7.0: the scene control button is also a per-browser choice (the world feature `sceneButton` still turns it off for all).
+  { key: "showSceneButton", type: "bool", default: true, client: true, label: "Scene control button in this browser", hint: "Shows the Wanderer's Satchel button in the token controls in this browser (GM only). Needs the Scene control button feature.", onChange: () => { try { /** @type {any} */ (globalThis).ui?.controls?.render?.({ reset: true }); } catch { /* shows after the next reload */ } } },
   { key: "showModuleData", type: "bool", default: false, client: true, label: "Show module data folder", hint: "Shows the \"Module data\" folder (the GM-only journals your modules keep) in the Journal sidebar, in this browser.", onChange: () => { /** @type {any} */ (globalThis).ui?.journal?.render?.(); } }
 ];

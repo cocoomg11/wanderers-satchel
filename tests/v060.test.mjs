@@ -98,7 +98,7 @@ test("skip lists: core's client records are never exported or imported, for ever
   assert.deepEqual(M.CORE_RECORDS, ["showModuleData", "windowPlacement"]);
   assert.deepEqual(M.skipList({ skipSettings: ["a", "windowPlacement"] }), ["a", "windowPlacement", "showModuleData"]);
   assert.deepEqual(M.skipList(null), ["showModuleData", "windowPlacement"]);
-  assert.deepEqual(M.OWN_SKIP, ["showModuleData", "windowPlacement"]);
+  assert.deepEqual(M.OWN_SKIP, ["showModuleData", "windowPlacement", "showSceneButton"]);
   const exp = M.buildModuleExport("x", [{ key: "a", scope: "world", value: 1 }, { key: "windowPlacement", scope: "client", value: {} }, { key: "showModuleData", scope: "client", value: true }], { skip: M.skipList({}) });
   assert.deepEqual(exp.world, { a: 1 }); assert.deepEqual(exp.client, {});
 });
@@ -113,14 +113,14 @@ test("readFix and FIX_ID are core's; the Satchel's own fix ids still read", asyn
   for (const id of Object.values(FIX)) assert.deepEqual(H.readFix({ label: "Go", action: id }), { label: "Go", action: id });
 });
 
-test("source checks: remembered windows, the open key binding keeps its id with no key, the folder is hidden", async () => {
+test("source checks: remembered windows, the open key binding keeps its id (0.7.0: default Shift+G), the folder is hidden", async () => {
   const { readFileSync } = await import("node:fs");
   const src = (/** @type {string} */ f) => readFileSync(new URL(`../scripts/${f}`, import.meta.url), "utf8");
   assert.match(src("hub.mjs"), /class HubApp extends RememberedWindow\(foundry\.applications\.api\.ApplicationV2, \{ moduleId: ID, key: "hub" \}\)/);
   assert.match(src("health.mjs"), /class HealthApp extends RememberedWindow\(foundry\.applications\.api\.ApplicationV2, \{ moduleId: ID, key: "health" \}\)/);
   const main = src("main.mjs");
   assert.match(main, /registerOpenKeybinding\(\{ moduleId: ID, action: "open",/);
-  assert.doesNotMatch(main, /editable:/);
+  assert.match(main, /editable: \[\{ key: OPEN_KEY\.key, modifiers: \[\.\.\.OPEN_KEY\.modifiers\] \}\]/);
   assert.doesNotMatch(main, /game\.keybindings\.register/);
   assert.match(main, /hideDataFolder\(ID, \{ shown: \(\) => S\.get\("showModuleData"\) === true \}\)/);
   assert.match(src("lifecycle.mjs"), /if \(Store\.isWriter\(\)\) await Store\.file\(\);/);

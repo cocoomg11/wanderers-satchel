@@ -202,3 +202,33 @@ test("launcher wiring (source checks): GM-gated action, adapters for the toolkit
   const ll = ad.slice(ad.indexOf("const lootLedger"), ad.indexOf("const redBook"));
   assert.doesNotMatch(ll, /\bopen:/);
 });
+
+// ---------------------------------------------------------------- 4. Key binding and the scene control button
+import { OPEN_KEY } from "../scripts/const.mjs";
+import { defineOpenKeybinding } from "../vendor/wanderers-core/index.mjs";
+import { SETTING_ROWS } from "../scripts/features-model.mjs";
+
+test("default key Shift+G: valid for core, not one of core's / dnd5e's / the toolkit's / Red Book's Shift keys", () => {
+  assert.deepEqual(OPEN_KEY, { key: "KeyG", modifiers: ["Shift"] });
+  const def = defineOpenKeybinding({ action: "open", name: "Open", onDown: () => {}, gmOnly: true, editable: [{ key: OPEN_KEY.key, modifiers: [...OPEN_KEY.modifiers] }] });
+  assert.deepEqual(def.editable, [{ key: "KeyG", modifiers: ["Shift"] }]); assert.equal(def.gmOnly, true);
+  // Core: Shift+W/A/S/D (facing), Shift+C (chat), Shift+T (target). dnd5e: Shift+B, Shift+E. Toolkit: Shift+K. Red Book: Shift+R.
+  for (const k of ["KeyW", "KeyA", "KeyS", "KeyD", "KeyC", "KeyT", "KeyB", "KeyE", "KeyK", "KeyR"]) assert.notEqual(OPEN_KEY.key, k);
+  return import("../scripts/settings-model.mjs").then(M => assert.ok(M.OWN_SKIP.includes("showSceneButton"), "a per-browser choice is never exported"));
+});
+
+test("scene control button: per-browser switch (client, default on), checked in the hook; v14 tool shape", () => {
+  const row = SETTING_ROWS.find(r => r.key === "showSceneButton");
+  assert.ok(row); assert.equal(row.client, true); assert.equal(row.default, true); assert.equal(typeof row.onChange, "function");
+  assert.doesNotThrow(() => row.onChange?.(false), "no ui in Node: harmless");
+  const main = readFileSync(new URL("../scripts/main.mjs", import.meta.url), "utf8");
+  assert.match(main, /if \(F\.on\("sceneButton"\)\) Hooks\.on\("getSceneControlButtons"/);
+  assert.match(main, /if \(!game\.user\?\.isGM \|\| S\.get\("showSceneButton"\) === false\) return;/);
+  assert.match(main, /tokens\.tools\.wanderersSatchel = \{ name: "wanderersSatchel", title: TITLE, icon: "fa-solid fa-bag-shopping", order: \d+, button: true, visible: true, onChange: \(\) => Hub\.open\(\) \}/);
+  // The Maintenance page shows the switch (this browser) and the key in use; the world feature off says so.
+  const on = View.maintenanceHtml({}, [], "REMOVE", { browser: { sceneButton: true, key: "Shift+G" } });
+  assert.match(on, /data-change="showSceneButton" checked/); assert.match(on, /<kbd>Shift\+G<\/kbd>/);
+  assert.match(View.maintenanceHtml({}, [], "REMOVE", { browser: { sceneButton: null, key: "" } }), /off for this world.*<kbd>none<\/kbd>/s);
+  const hub = readFileSync(new URL("../scripts/hub.mjs", import.meta.url), "utf8");
+  assert.match(hub, /if \(kind === "showSceneButton"\) \{/);
+});
