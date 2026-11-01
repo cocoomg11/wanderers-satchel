@@ -1,6 +1,50 @@
 # Wanderer's Satchel
 
-A GM hub for [Foundry VTT](https://foundryvtt.com) (v13 and v14, any game system) that keeps your other modules in one window:
+An optional GM hub for [Foundry VTT](https://foundryvtt.com): one window for your Wanderer's modules, with an update check, a combined health check and one-file settings backup.
+
+## Requirements
+
+- Foundry VTT v13 or v14 (verified on v14).
+- Any game system.
+- GM only: players see nothing of the Satchel.
+- Optional: the other Wanderer's modules (see [The Wanderer's family](#the-wanderers-family)). The Satchel lists whichever are installed.
+
+## Install
+
+In Foundry: **Add-on Modules › Install Module**, paste this manifest URL and click Install, then enable **Wanderer's Satchel** in your world:
+
+```
+https://github.com/cocoomg11/wanderers-satchel/releases/latest/download/module.json
+```
+
+## The Wanderer's family
+
+Five free modules that work on their own and fit together. Each one switches on only what you use.
+
+| Module | What it does |
+|---|---|
+| [Wanderer's Toolkit](https://github.com/cocoomg11/wayfarers-toolkit) | GM kit for D&D 5e: quest log, travel and flights, inns, loot rolls, boss frames, a three-coin economy. |
+| [Red Book](https://github.com/cocoomg11/red-book) | Session prep: a live session log, next-session board, scene readiness check, Session Start. |
+| [Wanderer's Satchel](https://github.com/cocoomg11/wanderers-satchel) | Optional hub: one window for the family, update check, combined health check, settings backup. |
+| [Ringmaker](https://github.com/cocoomg11/ringmaker) | Your own ring image for Foundry's dynamic token rings. Any game system. |
+| [Loot Ledger](https://github.com/cocoomg11/loot-ledger) | Priced, rollable loot pools and roll tables for D&D 5e, built from a classic-MMO item compendium. |
+
+They share one look that follows Foundry's light and dark themes. None of them needs the others.
+
+**Which modules the Satchel finds by itself.** Wanderer's Toolkit, Ringmaker and Loot Ledger are recognised as soon as they are installed. Red Book registers itself. Any other module can join through the [registration API](#public-api-and-hooks). Ringmaker, Loot Ledger and Red Book only answer GMs, and so do the Toolkit's panel and health check, so the Satchel calls them only on a GM's client.
+
+## Contents
+
+- [What it does](#what-it-does)
+- [Quick start](#quick-start)
+- [How to use](#how-to-use): [The hub window](#the-hub-window) · [Combined health check](#combined-health-check) · [Updates, What's new and settings backups](#updates-whats-new-and-settings-backups) · [Settings export / import for all](#settings-export--import-for-all) · [Debug logging for all](#debug-logging-for-all) · [Maintenance](#maintenance)
+- [Settings](#settings)
+- [Troubleshooting](#troubleshooting)
+- [Removing its data](#removing-its-data)
+- [For developers](#for-developers)
+- [License](#license)
+
+## What it does
 
 - an **overview** of every module (version, whether it's active, whether an update is out, its last health check), with **What's new** after a module updates;
 - a **page per module** with buttons that open its own control panel, health check, docs and issue page;
@@ -9,32 +53,11 @@ A GM hub for [Foundry VTT](https://foundryvtt.com) (v13 and v14, any game system
 - **Fix** buttons on health lines a module can repair itself;
 - **maintenance** (one Debug logging switch, removing the Satchel's own data).
 
-It looks like the rest of Foundry (light or dark theme) through a shared stylesheet from [wanderers-core](https://github.com/cocoomg11/wanderers-core).
-
-The Satchel only opens and reads; every module keeps its own settings and windows and works the same without it. Other modules can join through a [registration API](#public-api-and-hooks).
-
-What changed in each version: [CHANGELOG](CHANGELOG.md).
-
-## Contents
-
-- [Quick start](#quick-start)
-- [How to use](#how-to-use)
-  - [The hub window](#the-hub-window)
-  - [Combined health check](#combined-health-check)
-  - [Updates, What's new and settings backups](#updates-whats-new-and-settings-backups)
-  - [Settings export / import for all](#settings-export--import-for-all)
-  - [Debug logging for all](#debug-logging-for-all)
-  - [Remove Satchel data](#remove-satchel-data)
-- [Built-in modules](#built-in-modules)
-- [Settings](#settings)
-- [Public API and hooks](#public-api-and-hooks)
-- [Data Wanderer's Satchel writes](#data-wanderers-satchel-writes)
-- [Install](#install)
-- [License](#license)
+The Satchel only opens and reads; every module keeps its own settings and windows and works the same without it. What changed in each version: [CHANGELOG](CHANGELOG.md).
 
 ## Quick start
 
-1. Install and enable the module in your world (GM).
+1. Install and enable the module in your world (see [Install](#install)).
 2. Open it: **Game Settings › Wanderer's Satchel › Open the Satchel**, the bag button in the token controls, or the button in the Settings sidebar tab. You can also give it a key under **Configure Controls** (none is set by default).
 3. The **Overview** lists every module. Pick one in the sidebar (or its row) for its page and **Open control panel** to get to that module's own window; **Check everything** runs one health report for all.
 
@@ -46,7 +69,7 @@ What changed in each version: [CHANGELOG](CHANGELOG.md).
 
 GM only. A window (about 1000 px wide, resizable) with a sidebar on the left and the page on the right. The Settings menu, the key binding (*Open Wanderer's Satchel* in Configure Controls; no key by default), the token-controls button and the Settings sidebar button all open it on **Overview**. It opens where you last left it, at the same size (per browser; the health check window too); *Maintenance › Reset window positions* forgets that. In a narrow window the sidebar becomes a strip of links above the page.
 
-**Sidebar:** *Overview*; *Modules*, one link per module the Satchel knows (the [built-in ones](#built-in-modules) when installed, and any module that registered itself) with a status dot (the worst result of its last health check since the page loaded; hollow when not active or not checked yet) and a count of its warnings and problems; *Tools*: Health check, Settings transfer, Maintenance; the Satchel's version at the bottom. Inactive modules are dimmed. The arrow keys, Home and End move between links; Enter opens one.
+**Sidebar:** *Overview*; *Modules*, one link per module the Satchel knows (the ones it recognises when installed (see [The Wanderer's family](#the-wanderers-family)), and any module that registered itself) with a status dot (the worst result of its last health check since the page loaded; hollow when not active or not checked yet) and a count of its warnings and problems; *Tools*: Health check, Settings transfer, Maintenance; the Satchel's version at the bottom. Inactive modules are dimmed. The arrow keys, Home and End move between links; Enter opens one.
 
 **Overview:** *What's new* cards when a module was updated (see below), three tiles (modules active, updates available, last health check), a table of modules (version, update state such as *Update available 1.2.0 → 1.3.0*, health badge; each row opens that module's page; in a narrow window the table scrolls sideways in its own box), and cards for Settings transfer (Export, Import…), Settings backups, Debug logging for all and Maintenance. **Check now** (updates) and **Check everything** (health) are at the top.
 
@@ -59,7 +82,7 @@ GM only. A window (about 1000 px wide, resizable) with a sidebar on the left and
 
 ### Combined health check
 
-**Check everything** (or the *Health check* page) starts every module's own health check at once and shows the results grouped by module, problems first, with a summary on top (ok / warning / problem counts, checks still running, checks that failed, modules without a check, modules not active). A module's required modules from its manifest are listed too. The page shows straight away and fills in as each module answers, and the sidebar dots follow. `api.health({ window: true })` opens the same report in a window of its own.
+**Check everything** (or the *Health check* page) starts every module's own health check at once and shows the results grouped by module, problems first, with a summary on top (ok / warning / problem counts, checks still running, checks that failed, modules without a check, modules not active). A module's required modules from its manifest are listed too. The page shows straight away and fills in as each module answers, and the sidebar dots follow. 
 
 Each module has its own time limit, so one slow module never holds up or fails the others:
 
@@ -68,7 +91,7 @@ Each module has its own time limit, so one slow module never holds up or fails t
 - A module past its limit shows *No answer yet* as a warning, not a failure. If it answers later, its result replaces that line. **Check again** starts over.
 - A check that throws is shown as failed; the rest still run.
 
-**Filter:** the count chips above the report (OK, Warnings, Problems, and Still checking / Not active when there are any) are toggle buttons. Press one or several (for example Warnings and Problems) to see only those lines; **All** shows everything again. Modules with no matching line are hidden, and the page says how many. The counts on the chips are always the totals. Each module page's health panel has the same chips. The choice is remembered in this browser (local storage) and shared by the Health check page and the module pages; in a private window it lasts until the hub closes.
+**Filter:** the count chips above the report (OK, Warnings, Problems, and Still checking / Not active when there are any) are toggle buttons. Press one or several (for example Warnings and Problems) to see only those lines; **All** shows everything again. Modules with no matching line are hidden, and the page says how many. The counts on the chips are always the totals. Each module page's health panel has the same chips. The choice is remembered in this browser and shared by the Health check page and the module pages; in a private window it lasts until the hub closes.
 
 **Fix buttons** (switch *Health fix buttons*): a line a module can repair itself has a **Fix** button (with the module's own label, such as *Rebuild index*). It may ask first. After it runs, that module is checked again. The Satchel's own group in the report checks its GM-only journal (Fix: *Make GM only* when a player can see it), its backups, failed update checks and its debug logging.
 
@@ -82,7 +105,7 @@ Each module has its own time limit, so one slow module never holds up or fails t
 
 **What's new** (switch *What's new*): when a module's installed version is newer than the one a GM last saw, a card on the Overview (and on that module's page) shows its release notes for every version in between (at most 10). They come from the module's changelog file when its `module.json` names one in its folder (Foundry serves it, so it is the installed version's file), otherwise from the module's GitHub releases. The notes are shown as simple formatted text: headings, lists, bold, italics, code and http(s) links; anything else, including HTML, shows as plain text. **Dismiss** hides the card until the next version, for every GM. A module seen for the first time, or one that went back to an older version, is recorded without a card.
 
-**Settings backups** (switch *Settings backups*; *Settings backups* page under Tools): a backup is the same file as Settings transfer › Export, kept in the world in a GM-only journal (*Wanderer's Satchel (GM only)*, ownership None). The last 5 are kept. One is taken:
+**Settings backups** (switch *Settings backups*; *Settings backups* page under Tools): a backup is the same file as Settings transfer › Export, kept in the world in a GM-only journal (*Wanderer's Satchel (GM only)*). The last 5 are kept. One is taken:
 
 - when the update check finds updates (once for each new set of updates, so not every day);
 - on the first load after any module's version changed, and on the first load with Satchel 0.5.0 or later;
@@ -90,7 +113,7 @@ Each module has its own time limit, so one slow module never holds up or fails t
 
 **Restore…** opens the Settings transfer › Import preview with that backup; you tick what goes back and nothing is written before you confirm. Automatic backups are taken on the active GM's client only.
 
-*Load order:* the backup after a version change reads every module's settings in Foundry's `setup` hook (the earliest point settings can be read) and is written in `ready`, so it holds the settings from before the migrations modules usually run in their own `ready` hook. It cannot hold what a module changes in its `init` or `setup` hook (or a `setup` hook that runs before the Satchel's), Foundry's own data migration, or the part of a module that exports its settings through its own `exportSettings()` (it registers later); those are in the next backup.
+**What a backup after an update holds.** It holds your settings as they were before the modules' own upgrade steps ran. Changes a module makes very early while loading, Foundry's own data upgrade, and settings from a module that exports through its own export code show up in the next backup instead.
 
 ### Settings export / import for all
 
@@ -108,30 +131,9 @@ When at least one module has a known Debug logging setting, the Overview shows o
 
 ### Maintenance
 
-**Module data folder.** Your modules (on wanderers-core 0.5.0) keep their GM-only journals together in one Journal folder, *Module data*, which is hidden from the Journal sidebar. **Show module data folder** shows it in this browser. Each module has a switch of its own, and the folder shows when any one of them is on, so the page also lists the other modules' switches as set in this browser (read only: change them in that module's settings). This only tidies the sidebar; it hides nothing from players.
+**Module data folder.** Wanderer's modules keep their GM-only journals together in one journal folder, *Module data*, which is hidden from the Journal sidebar. **Show module data folder** shows it in this browser. Each module has a switch of its own, and the folder shows when any one of them is on, so the page also lists the other modules' switches as set in this browser (read only: change them in that module's settings). This only tidies the sidebar. It hides nothing from players.
 
 **Window positions.** **Reset window positions** forgets where the hub and the health check window were left in this browser; they open at the default place and size next time.
-
-### Remove Satchel data
-
-The *Maintenance* page (also **Remove Satchel data…** on the Overview) counts what the Satchel stored (a dry run), lets you tick what goes and asks you to type REMOVE; a missing confirm word or nothing ticked is said on the page. The GM-only journal (with the settings backups) is a category of its own, not ticked by default. See [Data Wanderer's Satchel writes](#data-wanderers-satchel-writes).
-
-## Built-in modules
-
-Built-in adapters use only what each module exposes. A module that calls `register()` replaces its adapter.
-
-| Module | Control panel | Health | Settings export / import | Debug logging |
-| --- | --- | --- | --- | --- |
-| Wanderer's Toolkit (`wayfarers-toolkit`) | its control panel (`api.panel`) | `api.healthReport()` (1.27 and later); older versions `api.health()`, which also whispers the toolkit's own card | read and checked by the Satchel (an older toolkit's own `api.settingsIO` import is used when it is there) | `debugLog` |
-| Ringmaker (`ringmaker`) | Ringmaker tools (settings menu) | from `api.status()` and `api.removePlan()` | read by the Satchel | `debugLog` when Ringmaker has one; the module page says when it doesn't |
-| Loot Ledger (`loot-ledger`) | Build loot pools (settings menu) | its source compendiums, built item and table compendiums, Build Report journal and main options (read without its API), plus dependencies | read by the Satchel | `debugLog` when Loot Ledger has one; the module page says when it doesn't |
-| Red Book (`red-book`) | its control panel (`api.panel`) | `api.health()` | read by the Satchel (its records are skipped) | `debugLog` |
-
-Red Book 0.4 and later register themselves, which replaces its row above with Red Book's own registration. Ringmaker 1.5 and later have a `debugLog` setting.
-
-The toolkit's page also has **Remove toolkit data…** and Red Book's **Remove Red Book data…** (each module's own window).
-
-**GM only.** Ringmaker, Loot Ledger and Red Book only answer GMs, and so do the toolkit's panel and health check. The Satchel calls them only on a GM's client: on a player's client its windows, buttons and API entries do nothing, and the adapters never call another module's API there.
 
 ## Settings
 
@@ -149,11 +151,37 @@ World settings (Game Settings › Wanderer's Satchel). The feature switches each
 | Feature: Debug logging for all | on | no switch |
 | Feature: Scene control button | on | no bag button in the token controls |
 
-Also **Debug logging** (`debugLog`, world, off): writes health check timings, update checks and imports to the browser console. It isn't in Configure Settings; **Debug logging for all** in the hub switches it with the others.
+Also **Debug logging** (world, off): writes health check timings, update checks and imports to the browser console. It isn't in Configure Settings; **Debug logging for all** in the hub switches it with the others.
 
-Per browser (client settings, not in Configure Settings): **Show module data folder** (`showModuleData`, off; on the Maintenance page) and the remembered window positions (`windowPlacement`, wanderers-core's). Neither is ever exported or imported, for the Satchel or for any other module: every module's `showModuleData` and `windowPlacement` are left out of Settings transfer and the backups.
+Per browser (not in Configure Settings): **Show module data folder** (off; on the Maintenance page) and the remembered window positions. Neither is ever exported or imported, for the Satchel or for any other module.
 
-## Public API and hooks
+## Troubleshooting
+
+- **A module is missing from the sidebar.** The Satchel shows the modules it recognises when they are installed, and any other module only if it registers itself. Check that the module is installed and active.
+- **The Satchel buttons do nothing for a player.** The Satchel is GM only.
+- **An update check says "Couldn't check".** The server didn't answer within 8 seconds, or the answer couldn't be read. Nothing else happens. **Check now** asks again. The Satchel never installs anything: updates are done in Foundry's Setup screen.
+- **A module shows "Still checking…" or "No answer yet".** That module's health check is slow. "No answer yet" is a warning, not a failure, and the result replaces it if the module answers later. **Check again** starts over.
+- **An import file is refused.** Files over 5 MB, files that are not valid JSON and files that are not from the Satchel are reported on the Import page. Nothing is written until you press **Import N settings**.
+- **A player can see the settings backups journal.** The Satchel's health check warns about it, with a **Fix** button (*Make GM only*). Foundry still sends the journal to players' browsers, so don't keep secrets in module settings.
+- **Something odd.** Switch **Debug logging for all** on and look at the browser console.
+
+## Removing its data
+
+The *Maintenance* page (also **Remove Satchel data…** on the Overview) counts what the Satchel stored (a dry run), lets you tick what goes and asks you to type REMOVE; a missing confirm word or nothing ticked is said on the page. The GM-only journal (with the settings backups) is a category of its own, not ticked by default. What it stores is listed below.
+
+The Satchel keeps these things:
+
+- Its own settings (the feature switches and Debug logging) and two per-browser settings: whether the Module data folder is shown, and where the windows were left.
+- The health report chat cards it whispers to GMs.
+- A hidden GM journal, *Wanderer's Satchel (GM only)*, in the shared *Module data* folder. It holds the settings backups (at most 5, each at most 1 MB), the module versions last shown in What's new and the bookkeeping for automatic backups. It is made by the first automatic write on the active GM's client (or the first backup or dismissal). **Not secrecy:** it is kept out of players' sidebars and windows, but Foundry still sends it to players' browsers (checked on Foundry 14). Deleting it loses the backups.
+- The shared *Module data* folder, when the first journal is filed. Remove Satchel data deletes it only when nothing else is in it.
+- In the browser (gone when you clear site data): the latest update-check answers (until the tab closes), the health check filter, and when this browser last ran the daily update check.
+- What you choose: **Import** writes other modules' settings, and **Debug logging for all** changes each module's own debug setting. Those belong to those modules and are not undone by Remove Satchel data.
+- A key binding you set is kept by Foundry with its own key bindings.
+
+## For developers
+
+### Public API and hooks
 
 `const satchel = game.modules.get("wanderers-satchel").api;` (set in our `init` hook). Entries marked GM do nothing on a player's client (a "GM only" notice and `undefined`).
 
@@ -224,24 +252,34 @@ satchel.register({
 });
 ```
 
-## Data Wanderer's Satchel writes
+### Built-in adapters
 
-- Its own world settings (the feature switches above and Debug logging) and two client settings (`showModuleData`, `windowPlacement`), under the `wanderers-satchel` namespace.
-- `flags.wanderers-satchel.health` on the health report chat messages it whispers to GMs.
-- One journal entry, *Wanderer's Satchel (GM only)* (ownership None; `flags.wanderers-satchel.storeEntry`, `flags.wanderers-satchel.store` and, once filed, `flags.wanderers-satchel.dataFolderFiled`), in the shared *Module data* folder: the settings backups (at most 5, each at most 1 MB), the module versions last shown in What's new and the bookkeeping for automatic backups. It is made by the first automatic write on the active GM's client (or the first backup or dismissal); an entry made before 0.6.0 is moved into *Module data* once by the active GM (move it elsewhere afterwards and it stays there). **Not secrecy:** ownership None keeps it out of players' sidebars and windows, but Foundry still sends the journal to players' clients (checked on Foundry 14), so a player with the browser console can read it. Don't keep anything secret in module settings. The Satchel's health check warns when a player can see it in the sidebar. Deleting it loses the backups.
-- The *Module data* journal folder (wanderers-core's, shared with your other modules), when the first store journal is filed. Remove Satchel data deletes it only when nothing else is in it.
-- Update-check answers in the browser's session storage (keys starting `wanderers-satchel.update.`); gone when the browser tab closes.
-- The health check filter in the browser's local storage (`wanderers-satchel.healthFilter`; only while a filter other than All is chosen), and when this browser last ran the daily update check (`wanderers-satchel.updateCheckedAt`).
-- What you choose: **Import** writes other modules' settings, and **Debug logging for all** changes each module's own debug setting. Those belong to those modules and are not undone by Remove Satchel data.
-- A key binding you set is kept by Foundry with its own key bindings.
+Built-in adapters use only what each module exposes. A module that calls `register()` replaces its adapter.
 
-## Built with wanderers-core
+| Module | Control panel | Health | Settings export / import | Debug logging |
+| --- | --- | --- | --- | --- |
+| Wanderer's Toolkit (`wayfarers-toolkit`) | its control panel (`api.panel`) | `api.healthReport()` (1.27 and later); older versions `api.health()`, which also whispers the toolkit's own card | read and checked by the Satchel (an older toolkit's own `api.settingsIO` import is used when it is there) | `debugLog` |
+| Ringmaker (`ringmaker`) | Ringmaker tools (settings menu) | from `api.status()` and `api.removePlan()` | read by the Satchel | `debugLog` when Ringmaker has one; the module page says when it doesn't |
+| Loot Ledger (`loot-ledger`) | Build loot pools (settings menu) | its source compendiums, built item and table compendiums, Build Report journal and main options (read without its API), plus dependencies | read by the Satchel | `debugLog` when Loot Ledger has one; the module page says when it doesn't |
+| Red Book (`red-book`) | its control panel (`api.panel`) | `api.health()` | read by the Satchel (its records are skipped) | `debugLog` |
+
+Red Book 0.4 and later register themselves, which replaces its row above with Red Book's own registration. Ringmaker 1.5 and later have a `debugLog` setting. The toolkit's page also has **Remove toolkit data…** and Red Book's has **Remove Red Book data…** (each module's own window). On a player's client the adapters never call another module's API.
+
+### Stored data
+
+| Where | Key |
+|---|---|
+| World and client settings | `wanderers-satchel.*` (feature switches, `debugLog`; client `showModuleData`, `windowPlacement`) |
+| Health report chat cards | `flags.wanderers-satchel.health` |
+| GM-only journal (ownership None) in *Module data* | `flags.wanderers-satchel.storeEntry`, `flags.wanderers-satchel.store`, `flags.wanderers-satchel.dataFolderFiled` |
+| Session storage | `wanderers-satchel.update.*` |
+| Local storage | `wanderers-satchel.healthFilter`, `wanderers-satchel.updateCheckedAt` |
+
+Every module's `showModuleData` and `windowPlacement` client records are left out of Settings transfer and the backups.
+
+### Built with wanderers-core
 
 The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.5.1) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels and the health fix reader, the settings file format and its checks, version compare, the REMOVE confirmation, the GM-only store journal and the *Module data* folder, remembered window placement, the open key binding and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
-
-## Install
-
-Manifest URL: `https://github.com/cocoomg11/wanderers-satchel/releases/latest/download/module.json`
 
 ## License
 
