@@ -372,6 +372,21 @@ test("runChecks: a module still running at slowMs shows Still checking… in the
   assert.equal(H.groupHealth(job.results).groups[0].sections[0].lines[0].text, "fine");
 });
 
+// ---------------------------------------------------------------- setting names and hints localized (pure: localize passed in)
+import { label as settingLabel, localizeDefs } from "../scripts/settings-model.mjs";
+test("setting labels: translation keys localized, plain text kept, no localize = as is", () => {
+  const dict = { "LOOTLEDGER.Settings.Ratio.Name": "Conversion ratio", "LOOTLEDGER.Settings.Ratio.Hint": "How many…" };
+  const loc = (/** @type {string} */ k) => dict[k] ?? k;
+  assert.equal(settingLabel("LOOTLEDGER.Settings.Ratio.Name", loc), "Conversion ratio");
+  assert.equal(settingLabel("Plain name", loc), "Plain name");
+  assert.equal(settingLabel("X.Y", null), "X.Y");
+  assert.equal(settingLabel(undefined, loc), "");
+  assert.equal(settingLabel("X.Y", () => { throw new Error("no"); }), "X.Y");
+  assert.equal(settingLabel("X.Y", () => ""), "X.Y");
+  const d = localizeDefs(new Map([["ratio", { scope: "world", type: Number, name: "LOOTLEDGER.Settings.Ratio.Name", hint: "LOOTLEDGER.Settings.Ratio.Hint" }]]), loc);
+  assert.deepEqual([d.get("ratio").name, d.get("ratio").hint, d.get("ratio").type], ["Conversion ratio", "How many…", Number]);
+});
+
 // ---------------------------------------------------------------- the remembered health filter (localStorage, every access wrapped)
 import * as Prefs from "../scripts/prefs.mjs";
 test("prefs: filter saved per browser; All removes it; storage that throws or is missing is harmless", () => {

@@ -14,14 +14,17 @@ import { getSetting as get, settingDefs } from "../vendor/wanderers-core/foundry
 import { log } from "./core.mjs";
 
 /**
- * A namespace's registered settings: Map key → { scope, type, choices, range, name, requiresReload, default }.
+ * A namespace's registered settings: Map key → { scope, type, choices, range, name, hint, requiresReload, default }. Names and
+ * hints are localized (modules often register translation keys), so the import preview shows what Configure Settings shows.
  * @param {string} ns
  */
 export function defs(ns) {
   const out = new Map();
-  for (const [k, c] of settingDefs(ns)) out.set(k, { scope: c.scope, type: c.type, choices: c.choices, range: c.range, name: c.name, requiresReload: !!c.requiresReload, default: c.default });
-  return out;
+  for (const [k, c] of settingDefs(ns)) out.set(k, { scope: c.scope, type: c.type, choices: c.choices, range: c.range, name: c.name, hint: c.hint, requiresReload: !!c.requiresReload, default: c.default });
+  return M.localizeDefs(out, localizer());
 }
+/** Foundry's localize, or null before i18n is ready. */
+const localizer = () => { const i = /** @type {any} */ (globalThis).game?.i18n; return typeof i?.localize === "function" ? (/** @type {string} */ k) => i.localize(k) : null; };
 
 /**
  * The entry a bundle part may be read into or written to: one the hub shows (and is active), or the Satchel itself. Anything else
@@ -92,7 +95,9 @@ export async function readText(text) {
         r = M.readModuleSettings(m.id, m.data, d, cur, e?.skipSettings ?? [], e?.validators ?? {});
       }
       const d = defs(m.id);
-      const rows = (r.rows ?? []).map((/** @type {any} */ x) => ({ ...x, reload: !!d.get(x?.key)?.requiresReload }));
+      // A module's own import may label rows with translation keys too.
+      const loc = localizer();
+      const rows = (r.rows ?? []).map((/** @type {any} */ x) => ({ ...x, label: M.label(x?.label, loc) || d.get(x?.key)?.name || x?.key, hint: d.get(x?.key)?.hint ?? "", reload: !!d.get(x?.key)?.requiresReload }));
       out.push({ ...base, ok: !!r.ok, error: r.ok ? null : r.error ?? "couldn't read", rows, unknown: r.unknown ?? [], skipped: r.skipped ?? [], invalid: r.invalid ?? [] });
     } catch (err) { out.push({ ...base, ok: false, error: String(err?.message ?? err) }); }
   }

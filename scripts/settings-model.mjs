@@ -18,6 +18,30 @@ import { buildExport, readImport, checkValue as coreCheck, preview as corePrevie
 import { ID } from "./const.mjs";
 
 export const FORMAT = 1;
+
+/**
+ * A setting's name or hint as people read it: modules register them as translation keys ("MYMOD.Settings.Ratio.Name") or plain
+ * text. `localize` is Foundry's `game.i18n.localize` on a live client (passed in, so this stays pure); a key without a translation
+ * comes back unchanged, and anything that isn't text gives "".
+ * @param {unknown} text
+ * @param {((key: string) => string) | null} [localize]
+ */
+export function label(text, localize = null) {
+  if (typeof text !== "string" || !text) return "";
+  if (typeof localize !== "function") return text;
+  try { const t = localize(text); return typeof t === "string" && t ? t : text; } catch { return text; }
+}
+
+/**
+ * The registered settings with their names and hints localized (a new Map; the other fields as they are).
+ * @param {Map<string, any>} defs
+ * @param {((key: string) => string) | null} [localize]
+ */
+export function localizeDefs(defs, localize = null) {
+  const out = new Map();
+  for (const [k, d] of defs) out.set(k, { ...d, name: label(d?.name, localize), hint: label(d?.hint, localize) });
+  return out;
+}
 /** Largest bundle file read (characters). */
 export const MAX_FILE = 5 * 1024 * 1024;
 /** Largest single Object/Array setting value accepted (bytes of JSON) and its deepest nesting. */
