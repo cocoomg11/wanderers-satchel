@@ -15,7 +15,7 @@ afterEach(() => restore());
 
 test("store: a 0.5.0 entry is found by its marker flag, read as before, filed in Module data once", async () => {
   const Store = await import("../scripts/store.mjs");
-  const old = await JournalEntry.create({ name: "Renamed by the GM", flags: { [ID]: { storeEntry: true, store: { v: 1, seen: { a: "1.0.0" }, backed: {}, updateBackup: "", snapshots: [] } } } });
+  const old = await /** @type {any} */ (globalThis).JournalEntry.create({ name: "Renamed by the GM", flags: { [ID]: { storeEntry: true, store: { v: 1, seen: { a: "1.0.0" }, backed: {}, updateBackup: "", snapshots: [] } } } });
   assert.equal(Store.entry(), old);
   assert.deepEqual(Store.read().seen, { a: "1.0.0" });
   assert.equal(old.folder, null);
