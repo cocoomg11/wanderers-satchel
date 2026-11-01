@@ -62,29 +62,27 @@ export function createRouter(ctx, initial = "overview") {
 /** The pages in sidebar order (for the arrow keys). @param {{ modules: { page: string }[], tools: { page: string }[] }} nav */
 export const navOrder = nav => ["overview", ...nav.modules.map(m => m.page), ...nav.tools.map(t => t.page)];
 
-/**
- * What a key does on a health filter chip: "toggle" (Space or Enter pressed), "swallow" (Space released: cancel the browser's click so
- * it does not toggle twice), null for any other key. Space / Enter are always kept from Foundry's keybindings.
- * @param {string} type "keydown" or "keyup" @param {string} key
- * @returns {"toggle" | "swallow" | null}
- */
-export function chipKey(type, key) {
-  const space = key === " " || key === "Spacebar";
-  if (type === "keydown") return space || key === "Enter" ? "toggle" : null;
-  if (type === "keyup") return space ? "swallow" : null;
-  return null;
-}
+/** Elements the browser activates itself with Space / Enter (a click fires once). */
+const NATIVE_CONTROL = /^(BUTTON|INPUT|SELECT|TEXTAREA|SUMMARY|A)$/;
 
 /**
- * Handles a key event on a health filter chip: for Space / Enter (and Space's release) it cancels the default and stops the event so
- * Foundry's keybindings never see it, and calls `toggle` once per press (not on auto-repeat, not on release). Returns whether it handled the event.
- * @param {{ type: string, key: string, repeat?: boolean, preventDefault(): void, stopPropagation(): void }} ev @param {() => void} toggle
+ * Hub-level keyboard rule for any focusable control inside the hub (sidebar links, chips, buttons, tabs, fields). Space and Enter
+ * never reach Foundry's keybindings (Space pauses the game): propagation is stopped on keydown and keyup. A native control keeps its
+ * own behaviour, so its click fires once. A control that is not native (role=button, a tabindex element with a data-action)
+ * gets no click from the browser, so Space is turned into one click on keydown (not on auto-repeat). Returns "click" when the caller
+ * must click the control, "stop" when the event was only kept from Foundry, null when the key is not ours.
+ * @param {{ type: string, key: string, repeat?: boolean, preventDefault(): void, stopPropagation(): void }} ev
+ * @param {{ tag?: string, role?: string | null, action?: boolean }} ctl the target: tag name, role attribute, has data-action
+ * @returns {"click" | "stop" | null}
  */
-export function handleChipKey(ev, toggle) {
-  const act = chipKey(ev.type, ev.key); if (!act) return false;
-  ev.preventDefault(); ev.stopPropagation();
-  if (act === "toggle" && !ev.repeat) toggle();
-  return true;
+export function hubKey(ev, ctl) {
+  const space = ev.key === " " || ev.key === "Spacebar";
+  if (!space && ev.key !== "Enter") return null;
+  ev.stopPropagation();
+  const native = NATIVE_CONTROL.test(String(ctl?.tag ?? "").toUpperCase());
+  const custom = !native && (ctl?.role === "button" || ctl?.role === "tab" || ctl?.role === "link" || !!ctl?.action);
+  if (space && custom) { ev.preventDefault(); return ev.type === "keydown" && !ev.repeat ? "click" : "stop"; }
+  return "stop";
 }
 
 /**

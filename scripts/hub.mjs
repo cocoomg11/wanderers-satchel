@@ -150,7 +150,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     const el = this.element;
     el.addEventListener("change", (/** @type {Event} */ ev) => this.#onChange(ev));
     el.addEventListener("keydown", (/** @type {KeyboardEvent} */ ev) => this.#onKey(ev));
-    el.addEventListener("keyup", (/** @type {KeyboardEvent} */ ev) => this.#onKeyUp(ev));
+    el.addEventListener("keyup", (/** @type {KeyboardEvent} */ ev) => this.#onKeyAny(ev));
   }
 
   /**
@@ -239,11 +239,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   /** Sidebar: arrow keys, Home, End move between links (roving focus). @param {KeyboardEvent} ev */
   #onKey(ev) {
     const t = /** @type {HTMLElement} */ (ev.target);
-    if (t?.classList?.contains("ws-filter")) {
-      // Space / Enter on a filter chip: toggle here and keep the key from Foundry's own keybindings (Space pauses the game).
-      HM.handleChipKey(ev, () => HubApp.#onFilter.call(this, /** @type {any} */ (ev), t));
-      return;
-    }
+    this.#onKeyAny(ev);
     if (!t?.classList?.contains("wc-nav")) return;
     const links = [...this.element.querySelectorAll(".wc-side .wc-nav")].map(x => /** @type {HTMLElement} */ (x));
     const next = HM.moveFocus(links.map(x => x.dataset.page ?? ""), t.dataset.page ?? "", ev.key); if (!next) return;
@@ -253,10 +249,17 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     to.focus();
   }
 
-  /** Space released on a filter chip: cancel the browser's click and keep it from Foundry. @param {KeyboardEvent} ev */
-  #onKeyUp(ev) {
-    const t = /** @type {HTMLElement} */ (ev.target);
-    if (t?.classList?.contains("ws-filter")) HM.handleChipKey(ev, () => {});
+  /**
+   * Every key event in the hub (down and up): Space / Enter on a focusable control are kept from Foundry's keybindings, see
+   * `hubKey`. Native buttons (chips, sidebar links, tabs) keep the browser's own single click.
+   * @param {KeyboardEvent} ev
+   */
+  #onKeyAny(ev) {
+    const t = /** @type {HTMLElement | null} */ (ev.target); if (!t?.closest) return;
+    const ctl = /** @type {HTMLElement | null} */ (t.closest("button, a, input, select, textarea, summary, [role=button], [role=tab], [role=link], [tabindex], [data-action]"));
+    if (!ctl || !this.element.contains(ctl)) return;
+    const r = HM.hubKey(ev, { tag: ctl.tagName, role: ctl.getAttribute("role"), action: ctl.hasAttribute("data-action") });
+    if (r === "click") ctl.click();
   }
 
   /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */

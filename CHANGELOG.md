@@ -11,12 +11,13 @@ Two keyboard fixes from a live check, wanderers-core 0.3.1, and clearer descript
 
 ### Fixed
 
-- **Space on a health filter chip paused the game.** Space did not toggle the chip and reached Foundry's own Space key (pause). Space and Enter now both toggle the chip and are kept from Foundry's keybindings; holding the key does not flicker it.
+- **Space on a health filter chip paused the game.** Space did not toggle the chip and reached Foundry's own Space key (pause). Space and Enter on any focusable control in the hub (filter chips, sidebar links, buttons, tabs, fields) are now kept from Foundry's keybindings, and the control still activates once.
 - **Focus was lost after opening a page with Enter in the sidebar.** Focus fell to the page body. It now stays on the sidebar link of the page you opened, so the arrow keys keep working.
 
 ### Untested in Foundry
 
 - Tab to a filter chip (Health check page and a module page) and press Space: the chip toggles once and the game does not pause. Same with Enter. Holding Space does not flicker the chip. Mouse click still works. In Firefox and Chrome.
+- Space on a sidebar link opens its page (like Enter) and does not pause; Space on other hub buttons (Check again, Export, Import, tabs, Remove) clicks once and does not pause; Space in a text field types a space and does not pause; Space with focus outside the hub still pauses.
 - Space or Enter on a chip while results are still coming in: focus stays on the chip.
 - Arrow to a sidebar link and press Enter: the page opens and focus stays on that link (also for a module page, Health check, Settings transfer, Maintenance); arrows still move between links; clicking a link with the mouse also leaves it focused.
 - No 404 for `vendor/wanderers-core/styles/wanderers-ui.css`; the hub at 640x720 and 1000x450 still shows the module table at full height (now core's rule); both themes.

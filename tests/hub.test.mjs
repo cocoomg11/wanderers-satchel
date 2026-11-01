@@ -223,31 +223,34 @@ test("module page health panel: the same filter", () => {
 // ---------------------------------------------------------------- filter chip keys
 const fakeKey = (type, key, repeat = false) => ({ type, key, repeat, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } });
 
-test("chipKey: Space and Enter toggle on press, Space release is swallowed, other keys ignored", () => {
-  assert.equal(HM.chipKey("keydown", " "), "toggle");
-  assert.equal(HM.chipKey("keydown", "Enter"), "toggle");
-  assert.equal(HM.chipKey("keyup", " "), "swallow");
-  assert.equal(HM.chipKey("keyup", "Enter"), null);
-  assert.equal(HM.chipKey("keydown", "a"), null);
-  assert.equal(HM.chipKey("keydown", "Tab"), null);
+test("hubKey: Space / Enter on a native control never reach Foundry, the browser's click is kept", () => {
+  for (const tag of ["BUTTON", "INPUT", "SELECT", "A", "TEXTAREA"]) for (const key of [" ", "Enter"]) for (const type of ["keydown", "keyup"]) {
+    const ev = fakeKey(type, key);
+    assert.equal(HM.hubKey(ev, { tag, action: true }), "stop");
+    assert.ok(ev.stopped && !ev.prevented, `${tag} ${key} ${type}`);
+  }
 });
 
-test("handleChipKey: Space / Enter toggle once, never reach Foundry (default cancelled, propagation stopped)", () => {
-  for (const key of [" ", "Enter"]) {
-    let n = 0; const down = fakeKey("keydown", key);
-    assert.equal(HM.handleChipKey(down, () => n++), true);
-    assert.equal(n, 1); assert.ok(down.prevented && down.stopped);
-  }
-  // Space released: no second toggle, but the browser's click and Foundry both blocked.
-  let n = 0; const up = fakeKey("keyup", " ");
-  assert.equal(HM.handleChipKey(up, () => n++), true);
-  assert.equal(n, 0); assert.ok(up.prevented && up.stopped);
-  // Holding the key does not flicker the chip, but still stays away from Foundry.
+test("hubKey: a non-native control (role=button / data-action) gets one click from Space", () => {
+  const down = fakeKey("keydown", " ");
+  assert.equal(HM.hubKey(down, { tag: "DIV", role: "button" }), "click");
+  assert.ok(down.stopped && down.prevented);
   const rep = fakeKey("keydown", " ", true);
-  HM.handleChipKey(rep, () => n++);
-  assert.equal(n, 0); assert.ok(rep.prevented && rep.stopped);
-  // Other keys pass through untouched (Tab must still move focus).
-  const tab = fakeKey("keydown", "Tab");
-  assert.equal(HM.handleChipKey(tab, () => n++), false);
-  assert.ok(!tab.prevented && !tab.stopped && n === 0);
+  assert.equal(HM.hubKey(rep, { tag: "SPAN", action: true }), "stop");
+  assert.ok(rep.stopped && rep.prevented);
+  const up = fakeKey("keyup", " ");
+  assert.equal(HM.hubKey(up, { tag: "DIV", role: "button" }), "stop");
+  assert.ok(up.stopped && up.prevented);
+  // Enter on a non-native control is only kept from Foundry (no default to cancel).
+  const enter = fakeKey("keydown", "Enter");
+  assert.equal(HM.hubKey(enter, { tag: "DIV", role: "button" }), "stop");
+  assert.ok(enter.stopped && !enter.prevented);
+});
+
+test("hubKey: other keys are untouched (Tab, arrows, letters)", () => {
+  for (const key of ["Tab", "ArrowDown", "a", "Escape"]) {
+    const ev = fakeKey("keydown", key);
+    assert.equal(HM.hubKey(ev, { tag: "BUTTON" }), null);
+    assert.ok(!ev.stopped && !ev.prevented);
+  }
 });
