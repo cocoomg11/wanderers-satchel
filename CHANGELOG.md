@@ -1,6 +1,30 @@
 # Changelog
 
-## 0.2.1
+## 0.3.0
+
+A new hub layout: a sidebar with pages instead of one long list of cards. Includes the 0.2.1 fixes below (0.2.1 was not released on its own).
+
+### Changed
+
+- **Sidebar and pages.** The hub window (about 1000 px wide, resizable) has a sidebar: *Overview*, a link per module with a status dot (worst result of its last health check; hollow when not active or not checked) and its warning count, and *Tools*: Health check, Settings transfer, Maintenance. Inactive modules are dimmed. Arrow keys, Home and End move between links. In a narrow window the sidebar becomes a strip above the page and the module table scrolls sideways in its own box.
+- **Overview:** tiles for active modules, updates available and the last health check; a module table (version, update state, health badge, a link to its page); cards for Settings transfer, Debug logging for all and Maintenance.
+- **Module page:** title, id, version and badges, **Open control panel**, an update banner only when there is an update (*newer than the latest release* and *Couldn't check* are one muted line), that module's own health report (run it alone from here), *In the Satchel* (export / import, its own Debug logging switch), Links, and *Module data* (its own actions such as Remove toolkit data…).
+- **Health check, settings import and Remove Satchel data now open inside the hub** (Health check, Settings transfer and Maintenance pages) instead of separate windows. `api.health({ window: true })` still opens a health window of its own. `api.settings.import()` opens Settings transfer › Import and asks for a file; `api.cleanup.open()` opens Maintenance. Otherwise the API is unchanged.
+- **Settings transfer** has Export and Import tabs. The import preview shows count badges, a block per module (file's version, ticked / refused badges, an issue list), red rows that can't be ticked for refused values, value chips, and a footer that stays in view with the tick count, how many need a reload and **Import N settings**. A file over 5 MB or one that can't be read is reported on the page, not only as a notification.
+- **Status colours follow Foundry's theme** (its success / warning / error / info colours, darker on the light theme) with Font Awesome icons and a word for screen readers instead of the ✓ ⚠ ✗ characters. The whispered health card uses the same icons.
+- Every click goes through the window's actions; icon-only buttons have labels; keyboard focus is visible.
+
+### Untested in Foundry
+
+- The whole new hub: every page in the dark and the light theme (status colours readable on parchment), resizing to a narrow window (sidebar strip, table scrolling), the sidebar keys.
+- Dots and counts filling in while **Check everything** runs, after **Run check** on a module page, and after `api.health({ window: true })`.
+- Settings transfer: Export; Import with a good file, a file over 5 MB, a non-JSON file, a file with refused values (red rows can't be ticked); ticking updates the badges and footer; **Import N settings** writes and asks for a reload when needed.
+- Maintenance: wrong confirm word and nothing ticked show on the page; Remove works and the counts reset.
+- The Settings menu, key binding, token-controls button and Settings sidebar button open the hub on Overview; with the hub open on another page they bring it to Overview.
+- Feature switches off (Update check, Combined health check, Settings export / import, Debug logging for all): the matching page, column or card goes away, and a page that was open goes back to Overview.
+- Whisper to GMs from the Health check page: the card looks right in chat.
+
+## 0.2.1 (not released separately; part of 0.3.0)
 
 ### Fixed
 

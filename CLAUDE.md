@@ -1,6 +1,6 @@
 # CLAUDE.md: Wanderer's Satchel
 
-Foundry VTT module (v13/v14, any game system): a GM hub for the user's other modules. A card per module (version, active, update check, open its panel / health / docs / issues), a combined health check, one-file settings export/import for all, one debug-logging switch, a registration API. Every module stays standalone: the Satchel never duplicates their settings or windows. Public repo, MIT.
+Foundry VTT module (v13/v14, any game system): a GM hub for the user's other modules. One window with a sidebar: Overview, a page per module (version, active, update check, health, open its panel / docs / issues), Tools pages, a combined health check, one-file settings export/import for all, one debug-logging switch, a registration API. Every module stays standalone: the Satchel never duplicates their settings or windows. Public repo, MIT.
 
 ## File map (`scripts/`)
 - `main.mjs` entry: feature settings, the settings menu, key binding (none by default), scene control + Settings sidebar buttons, the API (`game.modules.get("wanderers-satchel").api`, set in `init`), hook `wanderers-satchel.ready` in `ready`.
@@ -10,8 +10,9 @@ Foundry VTT module (v13/v14, any game system): a GM hub for the user's other mod
 - `adapters.mjs` built-in adapters (toolkit, Ringmaker, Loot Ledger, Red Book). `apiOf` returns null on non-GM clients. `adapters-model.mjs` (pure) skip lists, import validators (toolkit `flightNetwork`), Ringmaker status → lines, Loot Ledger state → sections, dependency lines.
 - `version-model.mjs` (pure) version compare (from core), update source (GitHub manifest → REST latest release, since release asset redirects have no CORS), cache (session storage), timeout, `checkUpdate`.
 - `health-model.mjs` (pure) report normaliser, time limits (`healthTimeout`: 90 s first run, then max(30 s, 3 × last), cap 5 min), `runChecks` (all at once, independent; states pending/slow/timeout/ran/failed; late answers replace the timeout), grouping + summary. `health.mjs` live runner + window that redraws as results come in.
-- `settings-model.mjs` (pure) bundle around core's settings file (`buildExport`/`readImport` with validators), `plainJson`, `validatorsFor`, `recheck` (write-time check), size limits. `settings-io.mjs` export/import + preview window; only hub entries and the Satchel are read/written.
-- `hub.mjs` the hub window, update checks, debug-all. `cleanup.mjs` Remove Satchel data (dry run, type REMOVE).
+- `settings-model.mjs` (pure) bundle around core's settings file (`buildExport`/`readImport` with validators), `plainJson`, `validatorsFor`, `recheck` (write-time check), size limits. `settings-io.mjs` export, `pickFile` (returns `{ name, size, text | error }`, errors shown inline), `readText`, `apply`; only hub entries and the Satchel are read/written. The preview is the hub's Settings transfer page.
+- `hub-model.mjs` (pure) page router (`overview`, `module:<id>`, `health`, `transfer`, `maintenance`; unknown module or feature off → overview), sidebar key moves, `healthIndex` (from `health.mjs` `latest()`), dots, update/health badges, view models for nav / overview / module page / import preview (ticks as a Set of `"i:j"`). `hub-view.mjs` (pure) HTML per page, `badge`, `icon` (Font Awesome + screen-reader word; no ✓ ⚠ ✗ characters).
+- `hub.mjs` `HubApp` (ApplicationV2, 1000×720, `actions` for every click, static `TABS` + `tabGroups` + `changeTab` for Export / Import), `refresh()` redraws sidebar + page in place (not Maintenance/Transfer, to keep typed input and ticks), update checks, debug-all, `open(page)`, `openImport()`. `health.mjs` keeps `latest()` results from every run and `onResult` listeners (the hub dots); `HealthApp` stays for `api.health({ window: true })`. `cleanup.mjs` Remove Satchel data (`plan`, `remove`, `submit`, `counts`; rendered on the Maintenance page).
 - `styles/satchel.css`. Tests in `tests/` (no Foundry globals needed; the adapters test sets a fake `game`).
 
 ## Key patterns
@@ -22,7 +23,8 @@ Foundry VTT module (v13/v14, any game system): a GM hub for the user's other mod
 - **Never throws into the hub:** health checks are wrapped and time-limited; update checks return `status: "error"` instead of throwing; settings reads report per module.
 - **Settings keys stable** (never rename). Our settings: the feature switches and `debugLog`. Record-type settings of other modules go in `SKIP` (adapters-model.mjs) or the registration's `skipSettings`.
 - **Flags/storage:** only `flags.wanderers-satchel.*` (health chat cards) and session-storage keys `wanderers-satchel.update.*`. Cleanup (`cleanup.mjs` `plan`/`remove`/`CATEGORIES`) must cover anything new.
-- Windows are ApplicationV2 with HTML built in code, class `ws-window` (no backdrop blur).
+- Windows are ApplicationV2 with HTML built in code (pure builders in `hub-view.mjs`), class `ws-window` (no backdrop blur). Clicks via `data-action` + `DEFAULT_OPTIONS.actions` (static private handlers, `this` = the app); changes (checkboxes) via one `change` listener on `data-change`.
+- **Styling:** only Foundry variables, checked live on 14.369: `--color-level-success/-warning/-error/-info` (+ `-bg`), `--color-text-primary/-secondary/-subtle/-accent`, `--font-body`, `--font-monospace`, `--font-size-NN`; theme via `body.theme-dark` / `body.theme-light` and `.themed.theme-*`. Status tokens `--ws-ok/-warn/-bad/-info/-off` on `.ws-window` (darkened for light theme); classes `ws-ok` … `ws-pending`; no hard-coded hex except var() fallbacks. Narrow layout via a container query on `.window-content`.
 - Pure files have no Foundry calls at import time and are tested in Node.
 
 ## What the adapters assume (check when those modules change)
@@ -41,8 +43,8 @@ Foundry VTT module (v13/v14, any game system): a GM hub for the user's other mod
 ## Tests
 - `npm test` = `node --test tests/*.test.mjs`; `npm run check` syntax; `npm run lint` (core's ESLint config); `npm run types` (tsc on JSDoc). CI = core's reusable `module-checks.yml@v0.2.0` (pin check, then all four); the Release workflow verifies the pin and runs check + test again.
 - Updating core: `node vendor/wanderers-core/vendor.mjs update X.Y.Z` (behind the agent proxy: `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`), bump the workflow tag, never hand-edit `vendor/`.
-- Tested: version compare, update source, update check (cache, failures, timeout), registration reading, merge, card model, doc links, debug plan, health normalising, time limits, parallel runner (slow/timeout/late/throw), grouping, settings bundle, per-module validation and validators, plain-data check, write-time recheck, adapters against a fake `game` (including no API calls for players).
-- Not testable in Node: windows, sidebar/scene buttons, key binding, real fetches (CORS), settings writes, chat cards.
+- Tested: hub router, sidebar keys, health index/dots/badges, update view, nav/overview/module/import models, view HTML (escaping, actions, no status characters), version compare, update source, update check (cache, failures, timeout), registration reading, merge, card model, doc links, debug plan, health normalising, time limits, parallel runner (slow/timeout/late/throw), grouping, settings bundle, per-module validation and validators, plain-data check, write-time recheck, adapters against a fake `game` (including no API calls for players).
+- Not testable in Node: windows (rendering, actions, tabs, focus), sidebar/scene buttons, key binding, real fetches (CORS), settings writes, chat cards.
 
 ## Release process
 1. Bump `version` in `module.json` and the `download` URL (`.../releases/download/vX.Y.Z/module.zip`); manifest URL stays `.../releases/latest/download/module.json`.

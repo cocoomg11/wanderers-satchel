@@ -5,7 +5,7 @@
 
 /** @type {import("../vendor/wanderers-core/features-model.mjs").FeatureInput[]} */
 export const FEATURE_LIST = [
-  { id: "updateCheck", label: "Update check", hint: "Each module card asks the module's manifest (its latest GitHub release) whether a newer version is out. Answers are kept for this browser session. Off: nothing is fetched." },
+  { id: "updateCheck", label: "Update check", hint: "Asks each module's manifest (its latest GitHub release) whether a newer version is out. Answers are kept for this browser session. Off: nothing is fetched." },
   { id: "combinedHealth", label: "Combined health check", hint: "One button runs every module's own health check and shows the results grouped by module, with a summary on top." },
   { id: "sharedSettings", label: "Settings export / import for all", hint: "Save the settings of every module in the Satchel to one JSON file and load them back, with a preview of what would change." },
   { id: "debugAll", label: "Debug logging for all", hint: "One switch that turns each module's own Debug logging setting on or off." },
