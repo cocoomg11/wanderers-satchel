@@ -80,18 +80,6 @@ export function moveFocus(order, current, key) {
   }
 }
 
-/** Status levels → Font Awesome icon and a word for screen readers. */
-export const LEVELS = /** @type {Record<string, { icon: string, word: string }>} */ ({
-  ok: { icon: "fa-solid fa-circle-check", word: "OK" },
-  warn: { icon: "fa-solid fa-triangle-exclamation", word: "Warning" },
-  bad: { icon: "fa-solid fa-circle-xmark", word: "Problem" },
-  info: { icon: "fa-solid fa-circle-info", word: "Info" },
-  off: { icon: "fa-solid fa-circle-minus", word: "Off" },
-  pending: { icon: "fa-solid fa-spinner fa-spin", word: "Checking" }
-});
-/** @param {string} level */
-export const levelOf = level => LEVELS[level] ? level : "info";
-
 /** "just now", "4 min ago", "2 h ago". @param {number | null | undefined} at @param {number} now */
 export function timeAgo(at, now) {
   if (typeof at !== "number") return "";
@@ -280,7 +268,7 @@ export function importModel(result, ticks) {
     const rows = (m.ok ? m.rows : []).map((/** @type {any} */ r, /** @type {number} */ j) => {
       const on = ticks.has(tickKey(i, j)); if (r.changed) changed++;
       if (on) { ticked++; if (r.reload) reload++; }
-      return { i, j, key: r.key, label: r.label || r.key, note: r.note || "", from: r.from, to: r.to, changed: !!r.changed, ticked: on, refused: null };
+      return { i, j, key: r.key, label: r.label || r.key, hint: r.hint || "", note: r.note || "", from: r.from, to: r.to, changed: !!r.changed, ticked: on, refused: null };
     });
     // Refused values show as red rows that can't be ticked (the reason in place of the value).
     for (const x of m.ok ? m.invalid ?? [] : []) rows.push({ i, j: -1, key: x.key, label: x.key, note: "", from: undefined, to: undefined, changed: false, ticked: false, refused: x.reason });

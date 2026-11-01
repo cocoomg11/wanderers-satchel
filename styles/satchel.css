@@ -1,219 +1,126 @@
 /*
- * Wanderer's Satchel. Windows use .ws-window; no backdrop blur (it costs a lot of frame rate in Foundry v14).
- * Colours come from Foundry's own variables (checked against Foundry 14.369): --color-level-success / -warning / -error / -info
- * for status, --color-text-primary / -secondary / -subtle for text, --color-text-accent (the warm orange) for the active page,
- * --font-body / --font-monospace. Status tokens (--ws-ok … --ws-off) are darkened in the light theme so text stays readable on
- * parchment. Everything is scoped under .ws-window.
+ * Wanderer's Satchel: only what the Satchel has of its own. The shared look (tokens --wc-*, badges, dots, status lines, panels,
+ * banners, chips, tables, sidebar shell, page head, buttons, focus, narrow layout) comes from wanderers-core's stylesheet,
+ * vendor/wanderers-core/styles/wanderers-ui.css, listed first in module.json; the Satchel's windows carry its root classes
+ * (UI_CLASSES) and the chat card is wrapped in them. Rules here read the core tokens and are scoped under .ws-window (the hub and
+ * the health window) or .ws-card (the whispered chat card). Windows have no backdrop blur (it costs a lot of frame rate in v14).
  */
-.ws-window {
-  backdrop-filter: none !important;
-  --ws-ok: var(--color-level-success, #26b231);
-  --ws-warn: var(--color-level-warning, #ee9b3a);
-  --ws-bad: var(--color-level-error, #ce0707);
-  --ws-info: var(--color-level-info, #59a1f6);
-  --ws-off: var(--color-text-subtle, #9f8475);
-  --ws-accent: var(--color-text-accent, #ee9b3a);
-  --ws-text: var(--color-text-primary, inherit);
-  --ws-text-2: var(--color-text-secondary, inherit);
-  --ws-text-3: var(--color-text-subtle, inherit);
-  --ws-line: color-mix(in srgb, var(--ws-text) 18%, transparent);
-  --ws-line-strong: color-mix(in srgb, var(--ws-text) 30%, transparent);
-  --ws-surface: color-mix(in srgb, var(--ws-text) 4%, transparent);
-  --ws-side-bg: color-mix(in srgb, var(--ws-text) 6%, transparent);
-  --ws-mono: var(--font-monospace, ui-monospace, monospace);
-}
-body.theme-light .ws-window, .ws-window.theme-light {
-  --ws-ok: color-mix(in srgb, var(--color-level-success, #26b231) 70%, black);
-  --ws-warn: color-mix(in srgb, var(--color-level-warning, #ee9b3a) 62%, black);
-  --ws-bad: color-mix(in srgb, var(--color-level-error, #ce0707) 85%, black);
-  --ws-info: color-mix(in srgb, var(--color-level-info, #59a1f6) 65%, black);
-  --ws-accent: color-mix(in srgb, var(--color-text-accent, #ee9b3a) 65%, black);
-}
-body .ws-window.theme-dark {
-  --ws-ok: var(--color-level-success, #26b231);
-  --ws-warn: var(--color-level-warning, #ee9b3a);
-  --ws-bad: color-mix(in srgb, var(--color-level-error, #ce0707) 60%, white);
-  --ws-info: var(--color-level-info, #59a1f6);
-  --ws-accent: var(--color-text-accent, #ee9b3a);
-}
-body.theme-dark .ws-window:not(.theme-light) { --ws-bad: color-mix(in srgb, var(--color-level-error, #ce0707) 60%, white); }
+.ws-window { backdrop-filter: none !important; }
+.ws-window .window-content { font-family: var(--font-body, inherit); }
+.ws-window code { font-family: var(--wc-mono); font-size: var(--font-size-12, 0.75rem); background: none; border: none; padding: 0; }
 
-.ws-window .window-content { padding: 0; font-family: var(--font-body, inherit); }
-.ws-window .hint { color: var(--ws-text-3); font-size: var(--font-size-12, 0.75rem); }
-.ws-window code { font-family: var(--ws-mono); font-size: var(--font-size-12, 0.75rem); background: none; border: none; padding: 0; }
-.ws-window .ws-grow { flex: 1; min-width: 0; }
-.ws-window .ws-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-.ws-window .ws-end { justify-content: flex-end; }
-.ws-window .ws-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.ws-window .ws-scroll { overflow-y: auto; height: 100%; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
-.ws-window .ws-footer { display: flex; gap: 0.4rem; justify-content: flex-end; margin-top: 0.5rem; }
-.ws-window .ws-footer button { flex: 0 0 auto; }
+/*
+ * Short or narrow hub (core 0.3.0, revision 1): the page column is a scrolling flexbox whose children could shrink, so the module
+ * table box collapsed to a few pixels. Core 0.3.1 (revision 2) fixes it in the shared stylesheet; drop this rule after moving to it.
+ */
+.ws-hub .wc-main > * { flex-shrink: 0; }
 
-/* ---------------------------------------------------------------- status tokens, badge, dot */
-.ws-window .ws-ok { color: var(--ws-ok); }
-.ws-window .ws-warn { color: var(--ws-warn); }
-.ws-window .ws-bad { color: var(--ws-bad); }
-.ws-window .ws-info { color: var(--ws-info); }
-.ws-window .ws-off, .ws-window .ws-pending { color: var(--ws-off); }
-.ws-window .ws-icon { width: 1.15em; text-align: center; flex: none; }
-.ws-window .ws-badge { display: inline-flex; align-items: center; gap: 0.35em; height: 22px; padding: 0 9px; border-radius: 11px; font-size: var(--font-size-12, 0.75rem); font-weight: 600; white-space: nowrap; background: color-mix(in srgb, currentColor 15%, transparent); }
-.ws-window .ws-badge-sm { height: 18px; padding: 0 6px; font-size: var(--font-size-11, 0.6875rem); }
-.ws-window .ws-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ws-off); }
-.ws-window .ws-dot-ok { background: var(--ws-ok); }
-.ws-window .ws-dot-warn { background: var(--ws-warn); }
-.ws-window .ws-dot-bad { background: var(--ws-bad); }
-.ws-window .ws-dot-info { background: var(--ws-info); }
-.ws-window .ws-dot-off, .ws-window .ws-dot-none { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ws-off); }
-.ws-window .ws-dot-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ws-info); animation: ws-pulse 1.2s ease-in-out infinite; }
-@keyframes ws-pulse { 50% { opacity: 0.35; } }
-@media (prefers-reduced-motion: reduce) { .ws-window .ws-dot-pending { animation: none; } }
-
-/* ---------------------------------------------------------------- buttons (Foundry's button look, sized) */
-.ws-window .ws-btn { flex: 0 0 auto; width: auto; display: inline-flex; align-items: center; justify-content: center; gap: 0.4em; white-space: nowrap; padding: 0 0.8em; min-height: 32px; }
-.ws-window .ws-btn.ws-sm { min-height: 28px; padding: 0 0.65em; font-size: var(--font-size-12, 0.75rem); }
-.ws-window .ws-btn.ws-primary { border-color: var(--ws-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ws-accent) 40%, transparent); }
-.ws-window .ws-btn:focus-visible, .ws-window .ws-nav:focus-visible, .ws-window .ws-go:focus-visible, .ws-window .ws-tab-btn:focus-visible, .ws-window .ws-main:focus-visible {
-  outline: 2px solid var(--ws-accent); outline-offset: -2px; box-shadow: none;
-}
-.ws-window .ws-main:focus:not(:focus-visible) { outline: none; }
-
-/* ---------------------------------------------------------------- hub layout: sidebar + page */
-.ws-hub .window-content { container-type: inline-size; overflow: hidden; }
-.ws-hub .ws-shell { display: flex; height: 100%; min-height: 0; color: var(--ws-text); }
-.ws-hub .ws-side { width: 210px; flex: none; background: var(--ws-side-bg); border-right: 1px solid var(--ws-line); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
-.ws-hub .ws-side-head { margin: 12px 10px 6px; font-size: var(--font-size-11, 0.6875rem); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ws-text-3); border: none; }
-.ws-hub .ws-side-empty, .ws-hub .ws-side-version { padding: 0 10px; margin: 0; }
-.ws-hub .ws-nav {
-  all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 9px; width: 100%; height: 34px; padding: 0 10px;
-  border-radius: 4px; color: var(--ws-text-2); font-family: var(--font-body, inherit); font-size: var(--font-size-14, 0.875rem);
-}
-.ws-hub .ws-nav:hover { background: color-mix(in srgb, var(--ws-text) 7%, transparent); color: var(--ws-text); }
-.ws-hub .ws-nav.active { background: color-mix(in srgb, var(--ws-accent) 15%, transparent); color: var(--ws-text); box-shadow: inset 2px 0 0 var(--ws-accent); }
-.ws-hub .ws-nav i { width: 16px; text-align: center; }
-.ws-hub .ws-nav .ws-dot { margin: 0 4px; }
-.ws-hub .ws-nav.ws-inactive .ws-lbl { color: var(--ws-text-3); }
-.ws-hub .ws-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ws-hub .ws-main { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
-
-.ws-hub .ws-pagehead, .ws-hub .ws-mhead { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-.ws-hub .ws-pagehead h2, .ws-hub .ws-mhead h2 { margin: 0; flex: 1; border: none; font-size: var(--font-size-24, 1.5rem); font-weight: 600; line-height: 1.1; }
-.ws-hub .ws-mhead h2 { flex: none; }
-.ws-hub .ws-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
-.ws-hub .ws-meta code { color: var(--ws-text-2); }
-
-/* overview */
-.ws-hub .ws-stats, .ws-hub .ws-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.ws-hub .ws-stat, .ws-hub .ws-tool, .ws-hub .ws-panel, .ws-hub .ws-mod, .ws-hub .ws-filebar { background: var(--ws-surface); border: 1px solid var(--ws-line); border-radius: 6px; }
-.ws-hub .ws-stat { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
-.ws-hub .ws-k { font-size: var(--font-size-11, 0.6875rem); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ws-text-3); }
-.ws-hub .ws-v { font-size: var(--font-size-20, 1.25rem); font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.ws-hub .ws-v .hint { font-size: var(--font-size-13, 0.8125rem); font-weight: 400; }
-.ws-hub .ws-tool { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+/* ---------------------------------------------------------------- overview */
+.ws-hub .wc-stats, .ws-hub .ws-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ws-hub .ws-stat-level { display: inline-flex; align-items: center; gap: 7px; }
+.ws-hub .ws-tools { display: grid; gap: 10px; }
+.ws-hub .ws-tool { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--wc-surface); border: 1px solid var(--wc-line); border-radius: var(--wc-radius); }
 .ws-hub .ws-tool h3 { margin: 0; border: none; font-size: var(--font-size-14, 0.875rem); font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.ws-hub .ws-tool p { margin: 0; flex: 1; font-size: var(--font-size-13, 0.8125rem); color: var(--ws-text-3); }
+.ws-hub .ws-tool p { margin: 0; flex: 1; font-size: var(--font-size-13, 0.8125rem); color: var(--wc-text-3); }
 .ws-hub .ws-check { display: inline-flex; align-items: center; gap: 8px; }
 .ws-hub .ws-check input { margin: 0; }
+.ws-hub .ws-side-empty { padding: 0 10px; margin: 0; }
+.ws-hub .ws-pad { padding: 14px; margin: 0; }
 
-/* tables (module list, import preview): scroll sideways in their own box when narrow */
-.ws-hub .ws-table-box { overflow-x: auto; border: 1px solid var(--ws-line); border-radius: 6px; background: var(--ws-surface); }
-.ws-hub .ws-table { width: 100%; min-width: 560px; border-collapse: collapse; margin: 0; background: none; border: none; font-size: var(--font-size-13, 0.8125rem); }
-.ws-hub .ws-table thead { background: none; }
-.ws-hub .ws-table th, .ws-hub .ws-table td { padding: 8px 12px; text-align: left; vertical-align: middle; border: none; border-top: 1px solid var(--ws-line); background: none; }
-.ws-hub .ws-table thead th { border-top: none; font-size: var(--font-size-11, 0.6875rem); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ws-text-3); }
-.ws-hub .ws-table tbody tr:nth-child(odd), .ws-hub .ws-table tbody tr:nth-child(even) { background: none; }
-.ws-hub .ws-table tbody th { font-weight: 600; font-size: var(--font-size-14, 0.875rem); }
+/* module table and import table: wide enough to read, scroll sideways in their own box when narrow */
+.ws-hub .ws-wide { min-width: 560px; }
+.ws-hub .wc-table tbody th { font-weight: 600; font-size: var(--font-size-14, 0.875rem); }
 .ws-hub .ws-name { display: flex; align-items: center; gap: 9px; }
 .ws-hub .ws-cell { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.ws-hub .ws-cell.ws-ok { color: var(--ws-text-2); }
-.ws-hub .ws-cell.ws-ok i { color: var(--ws-ok); }
-.ws-hub tr.ws-inactive, .ws-hub tr.ws-inactive th { color: var(--ws-text-3); }
+.ws-hub .ws-cell.wc-ok { color: var(--wc-text-2); }
+.ws-hub .ws-cell.wc-ok i { color: var(--wc-ok); }
+.ws-hub tr.ws-inactive, .ws-hub tr.ws-inactive th { color: var(--wc-text-3); }
 .ws-hub .ws-go-cell { width: 40px; text-align: right; }
-.ws-hub .ws-go { all: unset; box-sizing: border-box; cursor: pointer; width: 28px; height: 28px; border-radius: 4px; display: inline-grid; place-items: center; color: var(--ws-text-3); }
-.ws-hub .ws-go:hover { color: var(--ws-text); background: color-mix(in srgb, var(--ws-text) 8%, transparent); }
+.ws-hub .ws-go { color: var(--wc-text-3); }
 
-/* module page */
-.ws-hub .ws-banner, .ws-hub .ws-notice { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); background: color-mix(in srgb, currentColor 10%, transparent); margin: 0; }
-.ws-hub .ws-banner .ws-grow, .ws-hub .ws-notice > span { color: var(--ws-text); }
-.ws-hub .ws-notice[hidden] { display: none; }
-.ws-hub .ws-muted-line { margin: 0; color: var(--ws-text-3); }
-.ws-hub .ws-muted-line.ws-info { color: var(--ws-info); }
-.ws-hub .ws-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(220px, 1fr); gap: 16px; align-items: start; }
-.ws-hub .ws-side-panels { display: flex; flex-direction: column; gap: 16px; }
-.ws-hub .ws-ph { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--ws-line); }
-.ws-hub .ws-ph h3 { margin: 0; border: none; font-size: var(--font-size-14, 0.875rem); font-weight: 600; }
-.ws-hub .ws-pb { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
-.ws-hub .ws-pb p { margin: 0; }
-.ws-hub .ws-pad { padding: 14px; margin: 0; }
+/* ---------------------------------------------------------------- module page */
+.ws-hub .ws-muted-line { margin: 0; color: var(--wc-text-3); }
+.ws-hub .ws-muted-line.wc-info { color: var(--wc-info); }
+.ws-hub .ws-notes p { margin: 0; }
+.ws-hub .ws-side-panels { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .ws-hub .ws-kv-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
 .ws-hub .ws-kv-row input { margin: 0; }
-.ws-hub .ws-links { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.ws-hub .wc-panel-head .wc-hint { flex: none; }
 
-/* health lines (hub pages, the separate health window and the chat card) */
-.ws-window .ws-health h3 { display: flex; align-items: center; gap: 6px; margin: 0.8em 0 0.2em; padding-bottom: 2px; border-bottom: 1px solid var(--ws-line); font-size: var(--font-size-14, 0.875rem); }
-.ws-window .ws-health h4 { margin: 0.5em 0 0.15em; font-size: var(--font-size-13, 0.8125rem); color: var(--ws-text-2); border: none; }
-.ws-window .ws-health .ws-pb h4:first-child { margin-top: 0; }
-.ws-window .ws-counts { font-size: var(--font-size-12, 0.75rem); font-weight: normal; color: var(--ws-text-3); }
-.ws-window .ws-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 0.4em; }
-.ws-window .ws-summary-text { font-weight: 600; margin-right: 4px; }
-.ws-lines { list-style: none; margin: 0; padding: 0; }
-.ws-lines li { display: flex; align-items: baseline; gap: 6px; margin: 0.15em 0; }
-.ws-lines .ws-ok { color: var(--ws-ok, var(--color-level-success)); }
-.ws-lines .ws-warn { color: var(--ws-warn, var(--color-level-warning)); }
-.ws-lines .ws-bad { color: var(--ws-bad, var(--color-level-error)); }
-.ws-lines .ws-info { color: var(--ws-info, var(--color-level-info)); }
-.ws-lines .ws-off { opacity: 0.7; }
-/* the whispered chat card (outside any Satchel window) */
-.chat-message .ws-health .ws-summary { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.chat-message .ws-health .ws-badge { display: inline-flex; gap: 0.3em; align-items: center; padding: 0 6px; border-radius: 9px; font-size: 0.85em; background: color-mix(in srgb, currentColor 14%, transparent); }
-.chat-message .ws-health .ws-badge.ws-ok { color: var(--color-level-success); }
-.chat-message .ws-health .ws-badge.ws-warn { color: var(--color-level-warning); }
-.chat-message .ws-health .ws-badge.ws-bad { color: var(--color-level-error); }
-.chat-message .ws-health h3 { display: flex; gap: 4px; align-items: center; }
-.chat-message .ws-health .ws-counts { margin-left: auto; font-size: 0.8em; font-weight: normal; opacity: 0.8; }
-.chat-message .ws-health .ws-grow { flex: 1; }
-.chat-message .ws-sr, .ws-lines .ws-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* ---------------------------------------------------------------- health report (hub pages, health window, chat card) */
+.ws-health { display: flex; flex-direction: column; gap: 6px; }
+.ws-health h4 { margin: 0.5em 0 0.15em; border: none; font-size: var(--font-size-13, 0.8125rem); color: var(--wc-text-2); }
+.ws-health .wc-panel-body > h4:first-child, .ws-health-group > h4:first-of-type { margin-top: 0.2em; }
+.ws-health-group { margin-top: 0.4em; }
+.ws-group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding-bottom: 3px; margin-bottom: 4px; border-bottom: 1px solid var(--wc-line); }
+.ws-group-head h3 { flex: 1 1 12em; min-width: 0; display: flex; align-items: baseline; gap: 6px; margin: 0; border: none; font-size: var(--font-size-14, 0.875rem); font-weight: 600; line-height: 1.3; }
+.ws-group-title { min-width: 0; overflow-wrap: break-word; word-break: normal; }
+.ws-counts { flex: none; white-space: nowrap; font-size: var(--font-size-12, 0.75rem); font-weight: normal; color: var(--wc-text-3); }
+.ws-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 0.3em; }
+.ws-summary-text { font-weight: 600; margin-right: 4px; }
+.ws-hidden-note { margin: 0; }
+.ws-window .ws-health-box { display: flex; flex-direction: column; }
+.ws-health-window .ws-scroll { overflow-y: auto; height: 100%; display: flex; flex-direction: column; gap: 0.5rem; }
+.ws-health-window .ws-footer { margin-top: auto; padding-top: 0.5rem; }
 
-/* settings transfer */
-.ws-hub nav.ws-tabs { justify-content: flex-start; gap: 0; border-top: none; }
-.ws-hub .ws-tab-btn { all: unset; box-sizing: border-box; cursor: pointer; padding: 0 16px; line-height: 2.5; border-bottom: 2px solid transparent; color: var(--ws-text-2); font-family: var(--font-body, inherit); }
-.ws-hub .ws-tab-btn.active { color: var(--ws-text); border-bottom-color: var(--ws-accent); }
+/* filter chips: core's badge look as toggle buttons; pressed = accent ring, the others dim while a filter is on */
+.ws-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ws-window button.ws-filter { flex: none; width: auto; margin: 0; border: 1px solid transparent; box-shadow: none; cursor: pointer; font-family: inherit; }
+.ws-window button.ws-filter.wc-none { color: var(--wc-text-2); background: var(--wc-off-bg); }
+.ws-window button.ws-filter:hover { border-color: var(--wc-line-strong); }
+.ws-window button.ws-filter[aria-pressed="true"] { border-color: var(--wc-accent); box-shadow: inset 0 0 0 1px var(--wc-accent); }
+.ws-window .ws-filtering button.ws-filter[aria-pressed="false"] { opacity: 0.6; }
+.ws-window button.ws-filter:focus-visible { outline: 2px solid var(--wc-accent); outline-offset: 1px; }
+
+/* the whispered chat card: about 300 px wide, inherits the chat log's 24.5 px h3, so sizes are set here */
+.chat-message .ws-card { font-size: var(--font-size-13, 0.8125rem); }
+.chat-message .ws-card .ws-summary { gap: 4px; }
+.chat-message .ws-card .ws-summary-text { flex-basis: 100%; }
+.chat-message .ws-card .wc-badge { height: 20px; padding: 0 7px; font-size: var(--font-size-11, 0.6875rem); }
+/* !important: Foundry's chat styles size every h3 in a message (24.5 px); the title then wrapped a few letters per line */
+.chat-message .ws-card .ws-group-head h3 { font-size: var(--font-size-14, 0.875rem) !important; line-height: 1.3; flex-basis: 100%; }
+.chat-message .ws-card .ws-group-title { overflow-wrap: normal; word-break: normal; hyphens: none; }
+.chat-message .ws-card .ws-counts { font-size: var(--font-size-11, 0.6875rem); }
+.chat-message .ws-card h4 { font-size: var(--font-size-12, 0.75rem); }
+
+/* ---------------------------------------------------------------- settings transfer */
+.ws-hub nav.ws-tabs { justify-content: flex-start; gap: 0; border-top: none; flex-shrink: 0; }
+.ws-hub .ws-tab-btn { all: unset; box-sizing: border-box; cursor: pointer; padding: 0 16px; line-height: 2.5; border-bottom: 2px solid transparent; color: var(--wc-text-2); font-family: var(--font-body, inherit); }
+.ws-hub .ws-tab-btn.active { color: var(--wc-text); border-bottom-color: var(--wc-accent); }
+.ws-hub .ws-tab-btn:focus-visible { outline: 2px solid var(--wc-accent); outline-offset: -2px; }
 .ws-hub .ws-tab { display: none; flex-direction: column; gap: 14px; }
 .ws-hub .ws-tab.active { display: flex; }
 .ws-hub .ws-tab > p { margin: 0; }
-.ws-hub .ws-filebar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; flex-wrap: wrap; }
+.ws-hub .ws-filebar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; flex-wrap: wrap; background: var(--wc-surface); border: 1px solid var(--wc-line); border-radius: var(--wc-radius); }
 .ws-hub .ws-facts { display: flex; flex-wrap: wrap; gap: 8px; }
-.ws-hub .ws-mod { overflow: hidden; }
-.ws-hub .ws-mod.ws-inactive h3 { color: var(--ws-text-2); }
+.ws-hub .ws-mod.ws-inactive h3 { color: var(--wc-text-2); }
 .ws-hub .ws-mh { display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
 .ws-hub .ws-mh h3 { margin: 0; border: none; font-size: var(--font-size-15, 0.9375rem); font-weight: 600; }
 .ws-hub .ws-mh [data-part] { display: inline-flex; gap: 6px; }
-.ws-hub .ws-issues { list-style: none; margin: 0; padding: 6px 14px 10px; border-top: 1px solid var(--ws-line); display: flex; flex-direction: column; gap: 4px; }
-.ws-hub .ws-issues li { display: flex; align-items: baseline; gap: 6px; font-size: var(--font-size-13, 0.8125rem); }
-.ws-hub .ws-mod .ws-table-box { border: none; border-top: 1px solid var(--ws-line); border-radius: 0; background: none; }
+.ws-hub .ws-issues { padding: 6px 14px 10px; border-top: 1px solid var(--wc-line); font-size: var(--font-size-13, 0.8125rem); }
+.ws-hub .ws-mod .wc-table-box { border: none; border-top: 1px solid var(--wc-line); border-radius: 0; background: none; }
 .ws-hub .ws-import-table td:first-child, .ws-hub .ws-import-table th:first-child { width: 36px; padding-left: 14px; }
 .ws-hub .ws-import-table td { vertical-align: top; }
 .ws-hub .ws-import-table input { margin: 0; }
-.ws-hub .ws-val { display: inline-block; max-width: 100%; padding: 1px 6px; border-radius: 4px; font-family: var(--ws-mono); font-size: var(--font-size-12, 0.75rem); background: color-mix(in srgb, var(--ws-text) 8%, transparent); word-break: break-all; }
-.ws-hub .ws-val-new { background: color-mix(in srgb, var(--ws-info) 16%, transparent); }
-.ws-hub tr.ws-dim { color: var(--ws-text-3); }
-.ws-hub tr.ws-refused { background: color-mix(in srgb, var(--ws-bad) 8%, transparent); }
-.ws-hub tr.ws-refused td { color: var(--ws-bad); }
-.ws-hub .ws-sticky { position: sticky; bottom: 0; margin: 0 -24px -20px; padding: 10px 24px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--ws-line-strong); background: var(--background, var(--color-cool-5, #0b0a13)); }
+.ws-hub tr.ws-dim { color: var(--wc-text-3); }
+.ws-hub tr.ws-refused { background: color-mix(in srgb, var(--wc-bad) 8%, transparent); }
+.ws-hub tr.ws-refused td { color: var(--wc-bad); }
+.ws-hub .ws-sticky { position: sticky; bottom: 0; margin: 0 -22px -18px; padding: 10px 22px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--wc-line-strong); background: var(--background, var(--color-cool-5, #0b0a13)); }
 
-/* maintenance */
+/* ---------------------------------------------------------------- maintenance */
 .ws-hub .ws-cleanup { display: flex; flex-direction: column; gap: 10px; }
 .ws-hub .ws-cleanup h3 { margin: 0; border: none; font-size: var(--font-size-15, 0.9375rem); }
 .ws-hub .ws-cleanup p { margin: 0; }
 
-/* narrow windows: the sidebar becomes a wrapping strip above the page */
-@container (max-width: 720px) {
-  .ws-hub .ws-shell { flex-direction: column; }
-  .ws-hub .ws-side { width: auto; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--ws-line); padding: 6px; overflow: visible; }
-  .ws-hub .ws-nav { width: auto; max-width: 100%; }
-  .ws-hub .ws-side-head, .ws-hub .ws-side .ws-grow, .ws-hub .ws-side-version { display: none; }
-  .ws-hub .ws-main { padding: 14px 16px; }
+/*
+ * Narrow hub: core's container query handles the sidebar strip and wc-cols; these are the Satchel's own grids. Its own container
+ * on the shell (same width as the window content), so this keeps working when core's revision (and its container name) changes.
+ */
+.ws-hub .wc-shell { container: ws-hub / inline-size; }
+@container ws-hub (max-width: 720px) {
   .ws-hub .ws-sticky { margin: 0 -16px -14px; padding: 10px 16px; }
-  .ws-hub .ws-stats, .ws-hub .ws-tools, .ws-hub .ws-cols { grid-template-columns: minmax(0, 1fr); }
+  .ws-hub .wc-stats, .ws-hub .ws-tools { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* the Settings sidebar button */
 .ws-sidebar { gap: 0.35rem; margin-top: 0.5rem; }

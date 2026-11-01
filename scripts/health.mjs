@@ -3,12 +3,13 @@
  * limit (health-model.mjs), never throws, never changes anything itself. The window draws straight away and fills in as each
  * module answers, so one slow module never holds up the others.
  */
-import { ID, TITLE, esc } from "./const.mjs";
+import { ID, TITLE } from "./const.mjs";
 import * as H from "./health-model.mjs";
 import { dependencyLines } from "./adapters-model.mjs";
 import * as Reg from "./registry.mjs";
 import { log } from "./core.mjs";
-import { icon, badge, groupSections } from "./hub-view.mjs";
+import * as View from "./hub-view.mjs";
+import { UI_CLASSES } from "../vendor/wanderers-core/index.mjs";
 
 /** Per module, for this page load: how long its last answer took (the next limit is based on it). */
 const lastMs = new Map();
@@ -80,24 +81,21 @@ export async function run(ids = null) {
   return H.groupHealth(await r.done);
 }
 
-/** The summary as count badges. @param {any} s */
-export function summaryHtml(s) {
-  const b = (/** @type {string} */ lv, /** @type {string} */ t) => badge(lv, t, { icon: true });
-  const extra = [s.waiting ? b("pending", `${s.waiting} still checking`) : "", s.failed ? b("bad", `${s.failed} failed`) : "", s.none ? b("off", `${s.none} without a check`) : "", s.inactive ? b("off", `${s.inactive} not active`) : ""].join("");
-  return `<span class="ws-summary-text">${s.modules} module${s.modules === 1 ? "" : "s"}</span>${b("ok", `${s.ok} ok`)}${b("warn", `${s.warn} warning${s.warn === 1 ? "" : "s"}`)}${b("bad", `${s.bad} problem${s.bad === 1 ? "" : "s"}`)}${extra}`;
-}
-
 /**
- * The grouped report as HTML (every value escaped).
+ * The grouped report as HTML (every value escaped): static count badges, for the separate window and the chat card.
  * @param {any} g
+ * @param {{ card?: boolean, filter?: Set<string> | null }} [o]
  */
-export function html(g) {
-  const body = g.groups.map((/** @type {any} */ x) => `<section class="ws-health-group" aria-label="${esc(x.title)}"><h3>${icon(x.state === "pending" || x.state === "slow" ? "pending" : x.worst)}<span class="ws-grow">${esc(x.title)}</span><span class="ws-counts">${x.state === "pending" || x.state === "slow" ? "" : `${x.counts.ok} ok · ${x.counts.warn} warn · ${x.counts.bad} bad`}</span></h3>${x.note ? `<p class="hint">${esc(x.note)}</p>` : ""}${groupSections(x)}</section>`).join("");
-  return `<div class="ws-health"><p class="ws-summary" title="${esc(H.summaryText(g.summary))}">${summaryHtml(g.summary)}</p>${body || "<p>No modules to check.</p>"}</div>`;
+export const html = (g, o = {}) => View.healthHtml(g, { ...o, summaryTitle: H.summaryText(g.summary) });
+
+/** Whispers the report to every GM as a chat card (wrapped in the shared look's root classes). @param {any} results */
+export function post(results) {
+  if (!game.user?.isGM) return;
+  return ChatMessage.create({ content: html(H.groupHealth(results), { card: true }), whisper: game.users.filter((/** @type {any} */ u) => u.isGM).map((/** @type {any} */ u) => u.id), speaker: { alias: TITLE }, flags: { [ID]: { health: true } } });
 }
 
 export class HealthApp extends foundry.applications.api.ApplicationV2 {
-  static DEFAULT_OPTIONS = { id: `${ID}-health`, classes: ["ws-window", "ws-health-window"], window: { title: `${TITLE} · Health check`, icon: "fa-solid fa-stethoscope", resizable: true }, position: { width: 600, height: 680 } };
+  static DEFAULT_OPTIONS = { id: `${ID}-health`, classes: ["ws-window", "ws-health-window", ...UI_CLASSES], window: { title: `${TITLE} · Health check`, icon: "fa-solid fa-stethoscope", resizable: true }, position: { width: 600, height: 680 } };
   /** @param {any} [opts] */
   constructor(opts = {}) { super(opts); this.ids = opts.ids ?? null; /** @type {any} */ this.job = null; /** @type {HTMLElement | null} */ this.box = null; }
   async _renderHTML() {
@@ -105,13 +103,10 @@ export class HealthApp extends foundry.applications.api.ApplicationV2 {
     if (!game.user.isGM) { div.textContent = "GM only."; return div; }
     // A fresh run on each full render (Check again); updates while it runs only redraw the report part.
     this.job = start(this.ids, () => this.#draw());
-    div.innerHTML = `<div class="ws-health-box"></div><footer class="ws-footer"><button type="button" data-act="again"><i class="fa-solid fa-rotate"></i> Check again</button><button type="button" data-act="post"><i class="fa-solid fa-comment"></i> Whisper to GMs</button></footer>`;
+    div.innerHTML = `<div class="ws-health-box" aria-live="polite"></div><footer class="wc-row wc-end ws-footer"><button type="button" class="wc-btn" data-act="again"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Check again</button><button type="button" class="wc-btn" data-act="post"><i class="fa-solid fa-comment" aria-hidden="true"></i> Whisper to GMs</button></footer>`;
     this.box = div.querySelector(".ws-health-box");
     div.querySelector("[data-act=again]")?.addEventListener("click", () => this.render());
-    div.querySelector("[data-act=post]")?.addEventListener("click", () => {
-      if (!game.user.isGM || !this.job) return;
-      ChatMessage.create({ content: html(H.groupHealth(this.job.results)), whisper: game.users.filter((/** @type {any} */ u) => u.isGM).map((/** @type {any} */ u) => u.id), speaker: { alias: TITLE }, flags: { [ID]: { health: true } } });
-    });
+    div.querySelector("[data-act=post]")?.addEventListener("click", () => { if (game.user.isGM && this.job) post(this.job.results); });
     this.#draw();
     return div;
   }

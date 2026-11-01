@@ -15,6 +15,9 @@ import * as Health from "./health.mjs";
 import * as Cleanup from "./cleanup.mjs";
 import * as HM from "./hub-model.mjs";
 import * as View from "./hub-view.mjs";
+import * as Prefs from "./prefs.mjs";
+import { toggleFilter } from "./filter-model.mjs";
+import { UI_CLASSES } from "../vendor/wanderers-core/index.mjs";
 import { log } from "./core.mjs";
 
 const { cache } = Cleanup;
@@ -82,12 +85,12 @@ function snapshot() {
 
 export class HubApp extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
-    id: `${ID}-hub`, classes: ["ws-window", "ws-hub"],
+    id: `${ID}-hub`, classes: ["ws-window", "ws-hub", ...UI_CLASSES],
     window: { title: TITLE, icon: "fa-solid fa-bag-shopping", resizable: true },
     position: { width: 1000, height: 720 },
     actions: {
       nav: HubApp.#onNav, panel: HubApp.#onPanel, docs: HubApp.#onLink, changelog: HubApp.#onLink, bugs: HubApp.#onLink, extra: HubApp.#onExtra,
-      recheckUpdates: HubApp.#onRecheck, checkAll: HubApp.#onCheckAll, healthOne: HubApp.#onHealthOne, healthAgain: HubApp.#onCheckAll, healthPost: HubApp.#onPost,
+      recheckUpdates: HubApp.#onRecheck, checkAll: HubApp.#onCheckAll, healthOne: HubApp.#onHealthOne, healthAgain: HubApp.#onCheckAll, healthPost: HubApp.#onPost, healthFilter: HubApp.#onFilter,
       export: HubApp.#onExport, pickImport: HubApp.#onPickImport, doImport: HubApp.#onImport, cancelImport: HubApp.#onCancelImport, removeData: HubApp.#onRemove
     }
   };
@@ -106,6 +109,8 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     this._untrack = Reg.trackWindow(this);
     this._unlisten = Health.onResult(() => this.refresh());
     /** @type {any} */ this._timer = null;
+    /** The health filter (Set of keys; empty = All), remembered per browser. */
+    this.filter = Prefs.loadFilter();
   }
   async close(opts) { this._untrack?.(); this._unlisten?.(); clearTimeout(this._timer); return super.close(opts); }
 
@@ -118,21 +123,21 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   }
 
   async _renderHTML() {
-    const root = document.createElement("div"); root.className = "ws-shell";
+    const root = document.createElement("div"); root.className = "wc-shell";
     if (!game.user.isGM) { root.textContent = "GM only."; return root; }
     this.router.refresh();
     if (this.router.page === "health" && !this.healthJob) this.healthJob = Health.start(null, () => this.refresh());
     const d = snapshot();
-    root.innerHTML = `${this.#nav(d)}<main class="ws-main" tabindex="-1" aria-label="${esc(this.#pageTitle(d))}">${this.#page(d)}</main>`;
+    root.innerHTML = `${this.#nav(d)}<main class="wc-main" tabindex="-1" aria-label="${esc(this.#pageTitle(d))}">${this.#page(d)}</main>`;
     if (d.features.updateCheck && d.list.some((/** @type {any} */ e) => !updates.has(e.id) && Reg.moduleInfo(e.id))) checkUpdates();
     return root;
   }
   /** @param {any} result @param {HTMLElement} content */
   _replaceHTML(result, content) {
-    const top = content.querySelector(".ws-main")?.scrollTop ?? 0;
+    const top = content.querySelector(".wc-main")?.scrollTop ?? 0;
     const same = this._lastPage === this.router.page; this._lastPage = this.router.page;
     content.replaceChildren(result);
-    const main = /** @type {HTMLElement | null} */ (content.querySelector(".ws-main"));
+    const main = /** @type {HTMLElement | null} */ (content.querySelector(".wc-main"));
     if (main && same) main.scrollTop = top;
     this.#fillHealth();
   }
@@ -155,9 +160,9 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
       if (!this.rendered || !game.user?.isGM) return;
       if (this.router.refresh()) { this.render(); return; }
       const d = snapshot(); const el = this.element;
-      const nav = el.querySelector(".ws-side"); const focused = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.(".ws-nav") ? /** @type {HTMLElement} */ (document.activeElement).dataset.page : null;
-      if (nav) { nav.outerHTML = this.#nav(d); if (focused) /** @type {HTMLElement | null} */ (el.querySelector(`.ws-nav[data-page="${CSS.escape(focused)}"]`))?.focus(); }
-      const main = /** @type {HTMLElement | null} */ (el.querySelector(".ws-main"));
+      const nav = el.querySelector(".wc-side"); const focused = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.(".wc-nav") ? /** @type {HTMLElement} */ (document.activeElement).dataset.page : null;
+      if (nav) { nav.outerHTML = this.#nav(d); if (focused) /** @type {HTMLElement | null} */ (el.querySelector(`.wc-nav[data-page="${CSS.escape(focused)}"]`))?.focus(); }
+      const main = /** @type {HTMLElement | null} */ (el.querySelector(".wc-main"));
       if (!main) return;
       if (this.router.page === "health") { this.#fillHealth(); return; }
       if (this.router.page === "maintenance" || this.router.page === "transfer") return;
@@ -183,7 +188,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
         const item = d.items.find((/** @type {any} */ x) => x.id === p.id); const entry = d.list.find((/** @type {any} */ x) => x.id === p.id);
         if (!item) return "";
         const extras = (entry.extraActions ?? []).map((/** @type {any} */ x, /** @type {number} */ i) => ({ i, label: x.label, icon: x.icon ?? "fa-solid fa-wand-magic", ok: x.available ? safe(x.available) : true })).filter((/** @type {any} */ x) => x.ok);
-        return View.moduleHtml(HM.moduleModel({ item, entry, update: updates.get(item.id) ?? null, health: d.health.get(item.id) ?? null, features: d.features, debug: d.debug, extras, now: d.now }));
+        return View.moduleHtml(HM.moduleModel({ item, entry, update: updates.get(item.id) ?? null, health: d.health.get(item.id) ?? null, features: d.features, debug: d.debug, extras, now: d.now }), { filter: this.filter });
       }
       case "health": return View.healthPageHtml();
       case "transfer": return View.transferHtml({ tab: this.tabGroups.transfer ?? "export", error: this.imp.error, file: this.imp.file, result: this.imp.result, model: this.imp.result ? HM.importModel(this.imp.result, this.imp.ticks) : null });
@@ -193,7 +198,12 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   }
   #fillHealth() {
     const box = this.element?.querySelector?.(".ws-health-box");
-    if (box && this.healthJob) box.innerHTML = Health.html(H.groupHealth(this.healthJob.results));
+    if (!box || !this.healthJob) return;
+    // Results come in while the GM may be on a filter chip: keep focus on the same chip across the redraw.
+    const chip = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.("[data-action=healthFilter]") ? /** @type {HTMLElement} */ (document.activeElement).dataset.filter : null;
+    const g = H.groupHealth(this.healthJob.results);
+    box.innerHTML = View.healthHtml(g, { filter: this.filter, summaryTitle: H.summaryText(g.summary) });
+    if (chip) /** @type {HTMLElement | null} */ (box.querySelector(`[data-action="healthFilter"][data-filter="${CSS.escape(chip)}"]`))?.focus();
   }
 
   /** Foundry's tab switch, plus aria-selected. @param {string} tab @param {string} group @param {any} [options] */
@@ -224,8 +234,8 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   }
   /** Sidebar: arrow keys, Home, End move between links (roving focus). @param {KeyboardEvent} ev */
   #onKey(ev) {
-    const t = /** @type {HTMLElement} */ (ev.target); if (!t?.classList?.contains("ws-nav")) return;
-    const links = [...this.element.querySelectorAll(".ws-side .ws-nav")].map(x => /** @type {HTMLElement} */ (x));
+    const t = /** @type {HTMLElement} */ (ev.target); if (!t?.classList?.contains("wc-nav")) return;
+    const links = [...this.element.querySelectorAll(".wc-side .wc-nav")].map(x => /** @type {HTMLElement} */ (x));
     const next = HM.moveFocus(links.map(x => x.dataset.page ?? ""), t.dataset.page ?? "", ev.key); if (!next) return;
     ev.preventDefault();
     const to = links.find(x => x.dataset.page === next); if (!to) return;
@@ -237,7 +247,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   static #onNav(_ev, target) {
     if (!game.user?.isGM) return;
     this.go(target.dataset.page ?? "overview");
-    /** @type {HTMLElement | null} */ (this.element.querySelector(".ws-main"))?.focus({ preventScroll: true });
+    /** @type {HTMLElement | null} */ (this.element.querySelector(".wc-main"))?.focus({ preventScroll: true });
   }
   /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
   static #onPanel(_ev, target) { if (game.user?.isGM) Reg.openPanel(target.dataset.id); }
@@ -265,9 +275,19 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
   static #onHealthOne(_ev, target) { if (game.user?.isGM && F.on("combinedHealth")) { Health.start([target.dataset.id ?? ""]); this.refresh(); } }
   /** @this {HubApp} */
-  static #onPost() {
-    if (!game.user?.isGM || !this.healthJob) return;
-    ChatMessage.create({ content: Health.html(H.groupHealth(this.healthJob.results)), whisper: game.users.filter((/** @type {any} */ u) => u.isGM).map((/** @type {any} */ u) => u.id), speaker: { alias: TITLE }, flags: { [ID]: { health: true } } });
+  static #onPost() { if (game.user?.isGM && this.healthJob) Health.post(this.healthJob.results); }
+  /**
+   * A health filter chip (Health check page and module pages): toggles that level, All clears. Redraws the report in place and
+   * keeps keyboard focus on the same chip.
+   * @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target
+   */
+  static #onFilter(_ev, target) {
+    if (!game.user?.isGM) return;
+    this.filter = toggleFilter(this.filter, target.dataset.filter ?? "all"); Prefs.saveFilter(this.filter);
+    const key = target.dataset.filter ?? "all"; const el = this.element;
+    if (this.router.page === "health") { this.#fillHealth(); return; }
+    { const main = /** @type {HTMLElement | null} */ (el.querySelector(".wc-main")); if (main) { const top = main.scrollTop; main.innerHTML = this.#page(snapshot()); main.scrollTop = top; } }
+    /** @type {HTMLElement | null} */ (el.querySelector(`[data-action="healthFilter"][data-filter="${CSS.escape(key)}"]`))?.focus();
   }
   /** @this {HubApp} */
   static #onExport() { if (game.user?.isGM && F.on("sharedSettings")) SettingsIO.exportFile(); }

@@ -155,15 +155,67 @@ test("views: escaped, actions wired, no status characters, roving tabindex", () 
   const h = idx({ a: ran([{ level: "warn", text: "<b>y</b>" }]) });
   const evil = [{ ...items[0], title: "<img src=x>" }, items[1]];
   const nav = View.navHtml(HM.navModel({ items: evil, health: h, features: {}, version: "0.3.0", page: "module:a" }));
-  assert.ok(!nav.includes("<img")); assert.match(nav, /data-action="nav" data-page="module:a" tabindex="0" aria-current="page"/);
+  assert.ok(!nav.includes("<img")); assert.match(nav, /class="wc-nav active" data-action="nav" data-page="module:a" aria-current="page" tabindex="0"/);
+  assert.match(nav, /class="wc-nav wc-muted"/); assert.match(nav, /wc-badge wc-warn wc-badge-sm">1</); assert.match(nav, /class="wc-side-foot"/);
   assert.equal((nav.match(/tabindex="0"/g) ?? []).length, 1);
   const ov = View.overviewHtml(HM.overviewModel({ items: evil, updates: new Map(), health: h, features: {}, debug: null, now: 0 }), { updateCheck: true, combinedHealth: true, id: "wanderers-satchel" });
   assert.match(ov, /data-action="checkAll"/); assert.match(ov, /aria-label="Open &lt;img src=x&gt;"/);
   const mod = View.moduleHtml(HM.moduleModel({ item: items[0], entry: { id: "a" }, update: { status: "error", error: "x" }, health: h.get("a"), features: {}, debug: { rows: [], missing: [] }, extras: [], now: 0 }));
-  assert.ok(!mod.includes("<b>")); assert.match(mod, /ws-muted-line/); assert.ok(!mod.includes("ws-banner"));
+  assert.ok(!mod.includes("<b>")); assert.match(mod, /ws-muted-line/); assert.ok(!mod.includes("wc-banner"));
+  assert.match(mod, /class="wc-pagehead"/); assert.match(mod, /class="wc-panel"/); assert.match(mod, /class="wc-cols"/);
+  assert.match(ov, /class="wc-table-box"/); assert.match(ov, /class="wc-stats"/); assert.match(ov, /wc-btn wc-btn-primary/);
   for (const html of [nav, ov, mod]) assert.ok(!/[✓⚠✗]/.test(html));
   const tr = View.transferHtml({ tab: "import", error: { name: "big.json", text: "the file is too large (over 5 MB)." }, file: null, result: null, model: null });
-  assert.match(tr, /role="alert"/); assert.match(tr, /data-action="tab" data-group="transfer" data-tab="import" role="tab" aria-selected="true"/);
+  assert.match(tr, /class="wc-alert wc-bad" role="alert"/); assert.match(tr, /data-action="tab" data-group="transfer" data-tab="import" role="tab" aria-selected="true"/);
   const mt = View.maintenanceHtml({ messages: 2, cache: 0, settings: 1 }, [["messages", "M"], ["cache", "C"], ["settings", "S"]], "REMOVE");
-  assert.match(mt, /name="settings" >/); assert.match(mt, /data-action="removeData"/);
+  assert.match(mt, /name="settings" >/); assert.match(mt, /class="wc-btn wc-btn-danger" data-action="removeData"/);
+  for (const html of [nav, ov, mod, tr, mt]) assert.doesNotMatch(html, /\bws-(badge|dot|icon|sr|grow|row|end|btn|nav|side|main|shell|panel|ph|pb|banner|notice|lines|stat|k|v|val|table|table-box|pagehead|mhead|meta|lbl)(?![\w-])/, "old Satchel copies of the shared classes are gone");
+});
+
+// ---------------------------------------------------------------- health report: filter chips, hidden modules, chat card
+import { groupHealth } from "../scripts/health-model.mjs";
+
+const report = () => groupHealth([
+  { id: "a", title: "Alpha", state: "ran", report: [{ title: "S", lines: [{ level: "ok", text: "fine" }, { level: "warn", text: "hmm" }, { level: "info", text: "fyi" }] }] },
+  { id: "b", title: "Beta", state: "ran", report: [{ title: "S", lines: [{ level: "ok", text: "fine too" }] }] },
+  { id: "c", title: "Gamma", state: "ran", report: [{ title: "S", lines: [{ level: "bad", text: "broken" }] }, { title: "T", lines: [{ level: "ok", text: "t ok" }] }] },
+  { id: "d", title: "Delta", state: "inactive" },
+  { id: "e", title: "Eps", state: "slow" }
+]);
+
+test("healthHtml: chips are toggle buttons with aria-pressed; hidden note; static badges without a filter", () => {
+  const g = report();
+  const page = View.healthHtml(g, { filter: new Set(["bad"]) });
+  assert.match(page, /role="group" aria-label="Filter health lines"/);
+  assert.match(page, /<button type="button" class="wc-badge wc-bad ws-filter" data-action="healthFilter" data-filter="bad" aria-pressed="true">/);
+  assert.match(page, /data-filter="all" aria-pressed="false">All</);
+  assert.match(page, /4 modules hidden by the filter/);
+  assert.ok(page.includes("broken") && !page.includes("hmm") && !page.includes("fine too"));
+  const all = View.healthHtml(g, { filter: new Set() });
+  assert.match(all, /data-filter="all" aria-pressed="true"/); assert.ok(!all.includes("hidden by the filter"));
+  const none = View.healthHtml(g, { filter: new Set(["off", "ok"]) });
+  assert.ok(none.includes("Delta") && none.includes("fine too"));
+  const stat = View.healthHtml(g);
+  assert.ok(!stat.includes("<button")); assert.match(stat, /class="wc-badge wc-ok"/);
+  assert.match(stat, /class="wc-lines"/); assert.match(stat, /class="wc-status wc-warn"/);
+  assert.match(stat, /class="ws-group-title">Alpha</); assert.match(stat, /class="ws-counts">1 ok · 1 warn · 0 bad</);
+  assert.ok(!/[✓⚠✗]/.test(page + all + stat));
+});
+
+test("chat card: wrapped in the shared look's root classes; values escaped", () => {
+  const g = groupHealth([{ id: "x", title: "<script>", state: "ran", report: [{ title: "", lines: [{ level: "ok", text: "<b>x</b>" }] }] }]);
+  const card = View.healthHtml(g, { card: true });
+  assert.match(card, new RegExp(`^<div class="${View.ROOT} ws-card"><div class="ws-health">`));
+  assert.match(View.ROOT, /^wc-ui wc-r\d+$/);
+  assert.ok(!card.includes("<script>") && !card.includes("<b>"));
+});
+
+test("module page health panel: the same filter", () => {
+  const h = HM.healthIndex(new Map([["a", { result: { id: "a", title: "A", state: "ran", report: [{ title: "S", lines: [{ level: "ok", text: "fine" }, { level: "warn", text: "hmm" }] }] }, at: 0 }]]));
+  const model = HM.moduleModel({ item: items[0], entry: { id: "a" }, update: { status: "current" }, health: h.get("a"), features: {}, debug: { rows: [], missing: [] }, extras: [], now: 0 });
+  const on = View.moduleHtml(model, { filter: new Set(["warn"]) });
+  assert.match(on, /data-filter="warn" aria-pressed="true"/); assert.ok(on.includes("hmm") && !on.includes(">fine<"));
+  const bad = View.moduleHtml(model, { filter: new Set(["bad"]) });
+  assert.match(bad, /No lines match the filter/);
+  assert.ok(View.moduleHtml(model).includes(">fine<"));
 });

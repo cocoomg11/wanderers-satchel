@@ -1,25 +1,26 @@
 /**
- * The hub window's HTML, pure (tested in Node): one function per part (sidebar, overview, module page, health page, settings
- * transfer, import preview, maintenance) from the view models in hub-model.mjs. Every value is escaped. Clicks are wired through
- * ApplicationV2 `actions` (`data-action`); the transfer tabs use Foundry's own tab markup (`data-action="tab"`, `data-group`,
- * `data-tab`) so `changeTab` works. Colours come from theme-aware status classes (`ws-ok`, `ws-warn`, `ws-bad`, `ws-info`,
- * `ws-off`, `ws-pending`) defined in satchel.css on Foundry's `--color-level-*` variables.
+ * The hub window's HTML, pure (tested in Node): one function per part (sidebar, overview, module page, health page and report,
+ * settings transfer, import preview, maintenance) from the view models in hub-model.mjs. Every value is escaped. Clicks are wired
+ * through ApplicationV2 `actions` (`data-action`); the transfer tabs use Foundry's own tab markup (`data-action="tab"`,
+ * `data-group`, `data-tab`) so `changeTab` works. The look is wanderers-core's shared stylesheet (`wc-*` classes and tokens,
+ * vendor/wanderers-core/styles/wanderers-ui.css) plus satchel.css for what only the Satchel has (`ws-*`).
  */
-import { esc } from "./const.mjs";
-import { LEVELS, levelOf } from "./hub-model.mjs";
+import { esc, plural } from "./const.mjs";
+import { UI_CLASSES, TONES, tone, icon as coreIcon, badge as coreBadge, dot, statusLine, navItem } from "../vendor/wanderers-core/index.mjs";
 import { preview } from "./settings-model.mjs";
+import { filterChips, applyFilter, hiddenText } from "./filter-model.mjs";
 
+/** The root classes for markup outside a Satchel window (the chat card). */
+export const ROOT = UI_CLASSES.join(" ");
 /** A status icon with a word for screen readers. @param {string} level */
-export const icon = level => { const l = LEVELS[levelOf(level)]; return `<i class="${l.icon} ws-icon ws-${levelOf(level)}" aria-hidden="true"></i><span class="ws-sr">${l.word}:</span>`; };
+export const icon = (/** @type {string} */ level) => coreIcon(level);
 /** The reusable badge. @param {string} level @param {string} text @param {{ title?: string, icon?: boolean, small?: boolean }} [o] */
-export const badge = (level, text, o = {}) => `<span class="ws-badge ws-${levelOf(level)}${o.small ? " ws-badge-sm" : ""}"${o.title ? ` title="${esc(o.title)}"` : ""}>${o.icon ? `<i class="${LEVELS[levelOf(level)].icon}" aria-hidden="true"></i>` : ""}${esc(text)}</span>`;
-/** A status dot (hollow when off, none = not checked). @param {string} dot */
-const dotHtml = dot => `<span class="ws-dot ws-dot-${esc(dot)}" aria-hidden="true"></span>`;
+export const badge = (/** @type {string} */ level, /** @type {string} */ text, /** @type {{ title?: string, icon?: boolean, small?: boolean }} */ o = {}) => coreBadge(level, text, o);
 const dotWord = (/** @type {string} */ d) => ({ ok: "health OK", warn: "warnings", bad: "problems", off: "not active", pending: "checking", none: "not checked" })[d] ?? "";
-/** A button. @param {string} action @param {string} label @param {{ icon?: string, data?: Record<string, string>, primary?: boolean, small?: boolean, disabled?: boolean, title?: string, cls?: string }} [o] */
+/** A button. @param {string} action @param {string} label @param {{ icon?: string, data?: Record<string, string>, primary?: boolean, danger?: boolean, small?: boolean, disabled?: boolean, title?: string, cls?: string }} [o] */
 export function button(action, label, o = {}) {
   const data = Object.entries(o.data ?? {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join("");
-  const cls = ["ws-btn", o.primary ? "ws-primary" : "", o.small ? "ws-sm" : "", o.cls ?? ""].filter(Boolean).join(" ");
+  const cls = ["wc-btn", o.primary ? "wc-btn-primary" : "", o.danger ? "wc-btn-danger" : "", o.small ? "wc-btn-sm" : "", o.cls ?? ""].filter(Boolean).join(" ");
   return `<button type="button" class="${cls}" data-action="${esc(action)}"${data}${o.disabled ? " disabled" : ""}${o.title ? ` title="${esc(o.title)}"` : ""}>${o.icon ? `<i class="${esc(o.icon)}" aria-hidden="true"></i>` : ""}<span>${esc(label)}</span></button>`;
 }
 
@@ -28,26 +29,24 @@ export function button(action, label, o = {}) {
  * @param {ReturnType<typeof import("./hub-model.mjs").navModel>} nav
  */
 export function navHtml(nav) {
-  const link = (/** @type {string} */ page, /** @type {string} */ inner, /** @type {string} */ label, extra = "") => {
-    const on = nav.current === page;
-    return `<button type="button" class="ws-nav${on ? " active" : ""}${extra}" data-action="nav" data-page="${esc(page)}" tabindex="${on ? 0 : -1}"${on ? ` aria-current="page"` : ""} aria-label="${esc(label)}">${inner}</button>`;
-  };
-  const mods = nav.modules.map(m => link(m.page,
-    `${dotHtml(m.dot)}<span class="ws-lbl">${esc(m.title)}</span>${m.issues ? badge(m.issueLevel, String(m.issues), { small: true }) : ""}`,
-    `${m.title}${dotWord(m.dot) ? `, ${dotWord(m.dot)}` : ""}${m.issues ? `, ${m.issues} to look at` : ""}`, m.active ? "" : " ws-inactive")).join("");
-  return `<nav class="ws-side" aria-label="Satchel sections">
-    ${link("overview", `<i class="fa-solid fa-table-cells-large" aria-hidden="true"></i><span class="ws-lbl">Overview</span>`, "Overview")}
-    <h2 class="ws-side-head">Modules</h2>
-    ${mods || `<p class="hint ws-side-empty">None installed</p>`}
-    <h2 class="ws-side-head">Tools</h2>
-    ${nav.tools.map(t => link(t.page, `<i class="${esc(t.icon)}" aria-hidden="true"></i><span class="ws-lbl">${esc(t.label)}</span>`, t.label)).join("")}
-    <span class="ws-grow"></span>
-    <span class="hint ws-side-version">Satchel <code>${esc(nav.version)}</code></span>
+  const link = (/** @type {any} */ o) => navItem({ ...o, active: nav.current === o.page, tabindex: nav.current === o.page ? 0 : -1 });
+  const mods = nav.modules.map(m => link({
+    page: m.page, label: m.title, dot: m.dot, muted: !m.active,
+    badge: m.issues ? { tone: m.issueLevel, text: String(m.issues) } : undefined,
+    aria: `${m.title}${dotWord(m.dot) ? `, ${dotWord(m.dot)}` : ""}${m.issues ? `, ${m.issues} to look at` : ""}`
+  })).join("");
+  return `<nav class="wc-side" aria-label="Satchel sections">
+    ${link({ page: "overview", label: "Overview", icon: "fa-solid fa-table-cells-large", aria: "Overview" })}
+    <h2 class="wc-side-head">Modules</h2>
+    ${mods || `<p class="wc-hint ws-side-empty">None installed</p>`}
+    <h2 class="wc-side-head">Tools</h2>
+    ${nav.tools.map(t => link({ page: t.page, label: t.label, icon: t.icon, aria: t.label })).join("")}
+    <span class="wc-side-foot">Satchel <code>${esc(nav.version)}</code></span>
   </nav>`;
 }
 
 /** @param {string} title @param {string} [actions] */
-const pageHead = (title, actions = "") => `<header class="ws-pagehead"><h2>${esc(title)}</h2>${actions}</header>`;
+const pageHead = (title, actions = "") => `<header class="wc-pagehead"><div class="wc-pagehead-title"><h2>${esc(title)}</h2></div>${actions}</header>`;
 
 /**
  * The overview page.
@@ -56,23 +55,23 @@ const pageHead = (title, actions = "") => `<header class="ws-pagehead"><h2>${esc
  */
 export function overviewHtml(ov, o) {
   const s = ov.stats;
-  const stat = (/** @type {string} */ k, /** @type {string} */ v, hint = "") => `<div class="ws-stat"><span class="ws-k">${esc(k)}</span><span class="ws-v">${v}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</div>`;
-  const statLevel = (/** @type {any} */ x) => `<span class="ws-${levelOf(x.level)}">${icon(x.level)}${esc(x.text)}</span>`;
+  const stat = (/** @type {string} */ k, /** @type {string} */ v, hint = "") => `<div class="wc-stat"><span class="wc-stat-k">${esc(k)}</span><span class="wc-stat-v">${v}</span>${hint ? `<span class="wc-hint">${esc(hint)}</span>` : ""}</div>`;
+  const statLevel = (/** @type {any} */ x) => `<span class="ws-stat-level wc-${tone(x.level)}">${icon(x.level)}${esc(x.text)}</span>`;
   const rows = ov.rows.map(r => `<tr class="${r.active ? "" : "ws-inactive"}">
-      <th scope="row"><span class="ws-name">${dotHtml(r.dot)}${esc(r.title)}</span></th>
+      <th scope="row"><span class="ws-name">${dot(r.dot)}${esc(r.title)}</span></th>
       <td><code>${esc(r.version)}</code></td>
-      ${o.updateCheck ? `<td><span class="ws-cell ws-${levelOf(r.update.level)}"${r.update.title ? ` title="${esc(r.update.title)}"` : ""}><i class="${esc(r.update.icon)}" aria-hidden="true"></i><span>${esc(r.update.text)}</span></span></td>` : ""}
+      ${o.updateCheck ? `<td><span class="ws-cell wc-${tone(r.update.level)}"${r.update.title ? ` title="${esc(r.update.title)}"` : ""}><i class="${esc(r.update.icon)}" aria-hidden="true"></i><span>${esc(r.update.text)}</span></span></td>` : ""}
       ${o.combinedHealth && r.health ? `<td>${badge(r.health.level, r.health.text)}</td>` : ""}
-      <td class="ws-go-cell"><button type="button" class="ws-go" data-action="nav" data-page="${esc(r.page)}" aria-label="Open ${esc(r.title)}" title="Open ${esc(r.title)}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></td>
+      <td class="ws-go-cell"><button type="button" class="wc-btn wc-btn-ghost wc-btn-icon ws-go" data-action="nav" data-page="${esc(r.page)}" aria-label="Open ${esc(r.title)}" title="Open ${esc(r.title)}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></td>
     </tr>`).join("");
-  const table = ov.rows.length ? `<div class="ws-table-box"><table class="ws-table" aria-label="Modules">
-      <thead><tr><th scope="col">Module</th><th scope="col">Version</th>${o.updateCheck ? `<th scope="col">Updates</th>` : ""}${o.combinedHealth ? `<th scope="col">Health</th>` : ""}<th scope="col"><span class="ws-sr">Open</span></th></tr></thead>
+  const table = ov.rows.length ? `<div class="wc-table-box"><table class="wc-table ws-wide" aria-label="Modules">
+      <thead><tr><th scope="col">Module</th><th scope="col">Version</th>${o.updateCheck ? `<th scope="col">Updates</th>` : ""}${o.combinedHealth ? `<th scope="col">Health</th>` : ""}<th scope="col"><span class="wc-sr">Open</span></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`
-    : `<p class="ws-panel ws-pad">None of the known modules is installed, and no module has registered with the Satchel.</p>`;
+    : `<p class="wc-panel ws-pad">None of the known modules is installed, and no module has registered with the Satchel.</p>`;
   const t = ov.tools;
   const tools = [
-    t.transfer ? `<div class="ws-tool"><h3><i class="fa-solid fa-right-left" aria-hidden="true"></i>Settings transfer</h3><p>One file with every module's settings. You see a preview before anything is written.</p><div class="ws-row">${button("export", "Export", { icon: "fa-solid fa-file-export", small: true })}${button("pickImport", "Import…", { icon: "fa-solid fa-file-import", small: true })}</div></div>` : "",
-    t.debug ? `<div class="ws-tool"><h3><i class="fa-solid fa-terminal" aria-hidden="true"></i>Debug logging</h3><p>Turns each module's own debug setting on or off. ${t.debug.count} ${t.debug.count === 1 ? "module has" : "modules have"} one.</p><label class="ws-check"><input type="checkbox" data-change="debugAll" ${t.debug.state === "on" ? "checked" : ""}> On for all <span class="hint">· now ${t.debug.state === "mixed" ? "some on" : esc(t.debug.state)}</span></label></div>` : "",
+    t.transfer ? `<div class="ws-tool"><h3><i class="fa-solid fa-right-left" aria-hidden="true"></i>Settings transfer</h3><p>One file with every module's settings. You see a preview before anything is written.</p><div class="wc-row">${button("export", "Export", { icon: "fa-solid fa-file-export", small: true })}${button("pickImport", "Import…", { icon: "fa-solid fa-file-import", small: true })}</div></div>` : "",
+    t.debug ? `<div class="ws-tool"><h3><i class="fa-solid fa-terminal" aria-hidden="true"></i>Debug logging</h3><p>Turns each module's own debug setting on or off. ${t.debug.count} ${t.debug.count === 1 ? "module has" : "modules have"} one.</p><label class="ws-check"><input type="checkbox" data-change="debugAll" ${t.debug.state === "on" ? "checked" : ""}> On for all <span class="wc-hint">· now ${t.debug.state === "mixed" ? "some on" : esc(t.debug.state)}</span></label></div>` : "",
     `<div class="ws-tool"><h3><i class="fa-solid fa-broom" aria-hidden="true"></i>Maintenance</h3><p>Remove what the Satchel stored: chat cards, cached update answers, its settings.</p><div>${button("nav", "Remove Satchel data…", { small: true, data: { page: "maintenance" } })}</div></div>`
   ].join("");
   const head = pageHead("Overview", [
@@ -80,45 +79,93 @@ export function overviewHtml(ov, o) {
     o.combinedHealth ? button("checkAll", "Check everything", { icon: "fa-solid fa-stethoscope", primary: true }) : ""
   ].join(""));
   return `${head}
-    <div class="ws-stats">
-      ${stat("Modules", `${s.active} <span class="hint">of ${s.total} active</span>`)}
+    <div class="wc-stats">
+      ${stat("Modules", `${s.active} <span class="wc-hint">of ${s.total} active</span>`)}
       ${stat("Updates", statLevel(s.updates), s.updates.hint)}
       ${stat("Last health check", statLevel(s.health), s.health.hint)}
     </div>
     ${table}
     <div class="ws-tools">${tools}</div>
-    <p class="hint">Each module keeps its own settings and windows; the Satchel only opens them. Other modules can join with <code>game.modules.get("${esc(o.id)}").api.register({ id })</code>.</p>`;
+    <p class="wc-hint">Each module keeps its own settings and windows; the Satchel only opens them. Other modules can join with <code>game.modules.get("${esc(o.id)}").api.register({ id })</code>.</p>`;
 }
 
 /**
  * One module's page.
  * @param {ReturnType<typeof import("./hub-model.mjs").moduleModel>} m
  */
-export function moduleHtml(m) {
-  const head = `<header class="ws-mhead"><div class="ws-grow"><h2>${esc(m.title)}</h2><div class="ws-meta"><code>${esc(m.id)}${m.version ? ` · ${esc(m.version)}` : ""}</code>${m.badges.map((/** @type {any} */ b) => badge(b.level, b.text, { title: b.title })).join("")}</div></div>
+export function moduleHtml(m, { filter = new Set() } = {}) {
+  const head = `<header class="wc-pagehead"><div class="wc-pagehead-title"><h2>${esc(m.title)}</h2><div class="wc-pagehead-meta"><code>${esc(m.id)}${m.version ? ` · ${esc(m.version)}` : ""}</code>${m.badges.map((/** @type {any} */ b) => badge(b.level, b.text, { title: b.title })).join("")}</div></div>
     ${button("panel", "Open control panel", { icon: "fa-solid fa-sliders", primary: true, data: { id: m.id }, disabled: !m.canPanel, title: m.canPanel ? "" : "The module isn't active in this world." })}</header>`;
   const u = m.update;
-  const upd = u.banner ? `<div class="ws-banner ws-warn" role="status"><i class="${esc(u.icon)}" aria-hidden="true"></i><span class="ws-grow"><strong>Update available: <code>${esc(u.text.replace(/ available$/, ""))}</code></strong> <span class="hint">· ${esc(u.title.toLowerCase())}</span></span>${m.links.some((/** @type {any} */ l) => l.act === "changelog") ? button("changelog", "What's new", { small: true, data: { id: m.id } }) : ""}</div>`
-    : m.installed && u.level !== "ok" ? `<p class="ws-muted-line ws-${levelOf(u.level)}"${u.title ? ` title="${esc(u.title)}"` : ""}><i class="${esc(u.icon)}" aria-hidden="true"></i> ${esc(u.text)}</p>` : "";
+  const upd = u.banner ? `<div class="wc-banner wc-warn" role="status"><i class="${esc(u.icon)}" aria-hidden="true"></i><span class="wc-banner-text"><strong>Update available: <code>${esc(u.text.replace(/ available$/, ""))}</code></strong> <span class="wc-hint">· ${esc(u.title.toLowerCase())}</span></span>${m.links.some((/** @type {any} */ l) => l.act === "changelog") ? button("changelog", "What's new", { small: true, data: { id: m.id } }) : ""}</div>`
+    : m.installed && u.level !== "ok" ? `<p class="ws-muted-line wc-${tone(u.level)}"${u.title ? ` title="${esc(u.title)}"` : ""}><i class="${esc(u.icon)}" aria-hidden="true"></i> ${esc(u.text)}</p>` : "";
   const h = m.health;
-  const healthPanel = !h ? "" : `<section class="ws-panel" aria-label="Health">
-      <header class="ws-ph"><h3>Health</h3><span class="hint ws-grow">${esc(h.hint)}</span>${h.available ? button("healthOne", h.group ? "Run again" : "Run check", { icon: "fa-solid fa-stethoscope", small: true, data: { id: m.id } }) : ""}</header>
-      <div class="ws-pb ws-health">${!h.available ? `<p class="hint">Not active in this world.</p>` : h.group ? `${h.group.note ? `<p class="hint">${esc(h.group.note)}</p>` : ""}${groupSections(h.group)}` : `<p class="hint">Not checked since the page loaded. <em>Run check</em> runs this module's own check.</p>`}</div>
-    </section>`;
-  const satchel = m.transfer || m.debug ? `<section class="ws-panel" aria-label="In the Satchel"><header class="ws-ph"><h3>In the Satchel</h3></header><div class="ws-pb ws-kv">
-      ${m.transfer ? `<div class="ws-kv-row"><span>Export / import</span><span class="hint">${esc(m.transfer.text)}</span></div>` : ""}
-      ${m.debug ? m.debug.available ? `<div class="ws-kv-row"><label for="ws-dbg-${esc(m.id)}">Debug logging</label><input type="checkbox" id="ws-dbg-${esc(m.id)}" data-change="debugOne" data-id="${esc(m.id)}" ${m.debug.on ? "checked" : ""}></div>` : `<div class="ws-kv-row"><span>Debug logging</span><span class="hint">${esc(m.debug.text)}</span></div>` : ""}
-    </div></section>` : "";
-  const links = m.links.length ? `<section class="ws-panel" aria-label="Links"><header class="ws-ph"><h3>Links</h3></header><div class="ws-pb ws-links">${m.links.map((/** @type {any} */ l) => button(l.act, l.label, { icon: l.icon, small: true, data: { id: m.id }, cls: "ws-link" })).join("")}</div></section>` : "";
-  const data = m.extras.length ? `<section class="ws-panel" aria-label="Module data"><header class="ws-ph"><h3>Module data</h3></header><div class="ws-pb"><p class="hint">Opens the module's own window.</p><div class="ws-row">${m.extras.map((/** @type {any} */ x) => button("extra", x.label, { icon: x.icon, small: true, data: { id: m.id, i: String(x.i) } })).join("")}</div></div></section>` : "";
-  const notes = m.notes.length ? `<div class="hint">${m.notes.map((/** @type {string} */ n) => `<p>${esc(n)}</p>`).join("")}</div>` : "";
-  return `${head}${upd}${notes}<div class="ws-cols">${healthPanel || "<div></div>"}<div class="ws-side-panels">${satchel}${links}${data}</div></div>`;
+  const panel = (/** @type {string} */ title, /** @type {string} */ body, headExtra = "", bodyCls = "") => `<section class="wc-panel" aria-label="${esc(title)}"><header class="wc-panel-head"><h3>${esc(title)}</h3>${headExtra}</header><div class="wc-panel-body${bodyCls}">${body}</div></section>`;
+  let healthBody = "";
+  if (h) {
+    if (!h.available) healthBody = `<p class="wc-hint">Not active in this world.</p>`;
+    else if (!h.group) healthBody = `<p class="wc-hint">Not checked since the page loaded. <em>Run check</em> runs this module's own check.</p>`;
+    else {
+      const one = { groups: [h.group] }; const f = applyFilter(one, filter);
+      const lines = f.groups.length ? `${h.group.note && !f.on ? `<p class="wc-hint">${esc(h.group.note)}</p>` : ""}${groupSections(f.groups[0])}` : `<p class="wc-hint">No lines match the filter.</p>`;
+      healthBody = `${filterBar(filterChips(one, filter), `${m.title} health lines`)}${lines}`;
+    }
+  }
+  const healthPanel = !h ? "" : panel("Health", healthBody, `<span class="wc-hint">${esc(h.hint)}</span>${h.available ? button("healthOne", h.group ? "Run again" : "Run check", { icon: "fa-solid fa-stethoscope", small: true, data: { id: m.id } }) : ""}`, " ws-health");
+  const satchel = m.transfer || m.debug ? panel("In the Satchel", `
+      ${m.transfer ? `<div class="ws-kv-row"><span>Export / import</span><span class="wc-hint">${esc(m.transfer.text)}</span></div>` : ""}
+      ${m.debug ? m.debug.available ? `<div class="ws-kv-row"><label for="ws-dbg-${esc(m.id)}">Debug logging</label><input type="checkbox" id="ws-dbg-${esc(m.id)}" data-change="debugOne" data-id="${esc(m.id)}" ${m.debug.on ? "checked" : ""}></div>` : `<div class="ws-kv-row"><span>Debug logging</span><span class="wc-hint">${esc(m.debug.text)}</span></div>` : ""}`) : "";
+  const links = m.links.length ? panel("Links", `<div class="wc-row">${m.links.map((/** @type {any} */ l) => button(l.act, l.label, { icon: l.icon, small: true, data: { id: m.id } })).join("")}</div>`) : "";
+  const data = m.extras.length ? panel("Module data", `<p class="wc-hint">Opens the module's own window.</p><div class="wc-row">${m.extras.map((/** @type {any} */ x) => button("extra", x.label, { icon: x.icon, small: true, data: { id: m.id, i: String(x.i) } })).join("")}</div>`) : "";
+  const notes = m.notes.length ? `<div class="wc-hint ws-notes">${m.notes.map((/** @type {string} */ n) => `<p>${esc(n)}</p>`).join("")}</div>` : "";
+  return `${head}${upd}${notes}<div class="wc-cols">${healthPanel || "<div></div>"}<div class="ws-side-panels">${satchel}${links}${data}</div></div>`;
 }
 
 /** A health group's sections (no group header). @param {any} g */
-export const groupSections = g => g.sections.map((/** @type {any} */ s) => `${s.title ? `<h4>${esc(s.title)}</h4>` : ""}<ul class="ws-lines">${s.lines.map((/** @type {any} */ l) => `<li>${icon(l.level)}<span>${esc(l.text)}</span></li>`).join("")}</ul>`).join("");
+export const groupSections = (/** @type {any} */ g) => g.sections.map((/** @type {any} */ s) => `${s.title ? `<h4>${esc(s.title)}</h4>` : ""}<ul class="wc-lines">${s.lines.map((/** @type {any} */ l) => statusLine(l.level, l.text)).join("")}</ul>`).join("");
 
-/** The health page frame; hub.mjs fills `.ws-health-box` with health.mjs html() as results come in. */
+/**
+ * The filter chips: toggle buttons (`aria-pressed`) wired to the hub's `healthFilter` action. "All" clears the filter.
+ * @param {ReturnType<typeof filterChips>} chips @param {string} label what the group of buttons filters (for screen readers)
+ */
+export function filterBar(chips, label) {
+  const on = chips.some(c => c.key !== "all" && c.pressed);
+  return `<div class="ws-filters${on ? " ws-filtering" : ""}" role="group" aria-label="Filter ${esc(label)}">${chips.filter(c => c.show).map(c => `<button type="button" class="wc-badge wc-${c.tone} ws-filter" data-action="healthFilter" data-filter="${c.key}" aria-pressed="${c.pressed}">${c.key === "all" ? "" : `<i class="${TONES[c.tone].icon}" aria-hidden="true"></i>`}${esc(c.label)}</button>`).join("")}</div>`;
+}
+
+/** The summary as count badges (the chat card and the separate window: no buttons). @param {any} s */
+export function summaryHtml(s) {
+  const b = (/** @type {string} */ lv, /** @type {string} */ t) => badge(lv, t, { icon: true });
+  const extra = [s.waiting ? b("pending", `${s.waiting} still checking`) : "", s.failed ? b("bad", `${s.failed} failed`) : "", s.none ? b("off", `${s.none} without a check`) : "", s.inactive ? b("off", `${s.inactive} not active`) : ""].join("");
+  return `<span class="ws-summary-text">${plural(s.modules, "module")}</span>${b("ok", `${s.ok} ok`)}${b("warn", plural(s.warn, "warning"))}${b("bad", plural(s.bad, "problem"))}${extra}`;
+}
+
+/** One module's header in the report: title (wraps as words) and its counts (never wrap; move to their own line when narrow). @param {any} x */
+const groupHead = (/** @type {any} */ x) => {
+  const busy = x.state === "pending" || x.state === "slow";
+  return `<header class="ws-group-head"><h3>${icon(busy ? "pending" : x.worst)}<span class="ws-group-title">${esc(x.title)}</span></h3>${busy ? "" : `<span class="ws-counts">${x.counts.ok} ok · ${x.counts.warn} warn · ${x.counts.bad} bad</span>`}</header>`;
+};
+
+/**
+ * The grouped report as HTML (every value escaped). `filter`: the chips become toggle filters and only matching lines show
+ * (modules without one are hidden and counted). `card`: the whispered chat card (static badges, wrapped in the shared look's
+ * root classes so it is styled outside any Satchel window).
+ * @param {any} g the groupHealth result
+ * @param {{ filter?: Set<string> | null, card?: boolean, summaryTitle?: string }} [o] filter: null for static badges
+ */
+export function healthHtml(g, { filter = null, card = false, summaryTitle = "" } = {}) {
+  const f = filter ? applyFilter(g, filter) : { groups: g.groups, hidden: 0, on: false };
+  const body = f.groups.map((/** @type {any} */ x) => `<section class="ws-health-group" aria-label="${esc(x.title)}">${groupHead(x)}${x.note ? `<p class="wc-hint">${esc(x.note)}</p>` : ""}${groupSections(x)}</section>`).join("");
+  const summary = filter
+    ? `<div class="ws-summary"${summaryTitle ? ` title="${esc(summaryTitle)}"` : ""}><span class="ws-summary-text">${plural(g.summary.modules, "module")}</span>${filterBar(filterChips(g, filter), "health lines")}</div>`
+    : `<p class="ws-summary"${summaryTitle ? ` title="${esc(summaryTitle)}"` : ""}>${summaryHtml(g.summary)}</p>`;
+  const hidden = f.hidden ? `<p class="wc-hint ws-hidden-note" role="status">${esc(hiddenText(f.hidden))}${f.groups.length ? "" : ". Choose All to see every line."}</p>` : "";
+  const empty = g.groups.length ? "" : "<p>No modules to check.</p>";
+  const inner = `<div class="ws-health">${summary}${hidden}${body}${empty}</div>`;
+  return card ? `<div class="${ROOT} ws-card">${inner}</div>` : inner;
+}
+
+/** The health page frame; hub.mjs fills `.ws-health-box` with healthHtml() as results come in. */
 export const healthPageHtml = () => `${pageHead("Health check", `${button("healthAgain", "Check again", { icon: "fa-solid fa-rotate" })}${button("healthPost", "Whisper to GMs", { icon: "fa-solid fa-comment" })}`)}<div class="ws-health-box" aria-live="polite"></div>`;
 
 /**
@@ -130,9 +177,9 @@ export function transferHtml(s) {
   const exp = `<section class="tab ws-tab${s.tab === "export" ? " active" : ""}" data-group="transfer" data-tab="export" role="tabpanel">
       <p>Downloads one JSON file with the settings of every active module in the Satchel (and the Satchel's own). Record-type settings (histories, caches, "last version seen") are never exported.</p>
       <div>${button("export", "Export all settings", { icon: "fa-solid fa-file-export", primary: true })}</div></section>`;
-  const err = s.error ? `<div class="ws-notice ws-bad" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span><strong>Last file not read.</strong> ${s.error.name ? `<code>${esc(s.error.name)}</code> wasn't read: ` : ""}${esc(s.error.text)}</span></div>` : "";
+  const err = s.error ? `<div class="wc-alert wc-bad" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span class="wc-alert-title">Last file not read.</span><p>${s.error.name ? `<code>${esc(s.error.name)}</code> wasn't read: ` : ""}${esc(s.error.text)}</p></div>` : "";
   const body = s.result && s.model ? importHtml(s.result, s.model, s.file)
-    : `<div class="ws-filebar"><span class="ws-grow">Pick a settings file exported by the Satchel. Nothing is written until you confirm.</span>${button("pickImport", "Choose a file…", { icon: "fa-solid fa-file-import", primary: true })}</div>`;
+    : `<div class="ws-filebar"><span class="wc-grow">Pick a settings file exported by the Satchel. Nothing is written until you confirm.</span>${button("pickImport", "Choose a file…", { icon: "fa-solid fa-file-import", primary: true })}</div>`;
   const imp = `<section class="tab ws-tab${s.tab === "import" ? " active" : ""}" data-group="transfer" data-tab="import" role="tabpanel">${err}${body}</section>`;
   return `${pageHead("Settings transfer")}<nav class="tabs ws-tabs" data-group="transfer" role="tablist" aria-label="Settings transfer">${tab("export", "Export", "fa-solid fa-file-export")}${tab("import", "Import", "fa-solid fa-file-import")}</nav>${exp}${imp}`;
 }
@@ -144,34 +191,34 @@ const kb = (/** @type {number} */ n) => n < 1024 ? `${n} B` : `${Math.max(1, Mat
  * @param {(v: unknown) => string} [show] short value text
  */
 export function importHtml(r, model, file, show = v => preview(v)) {
-  const bar = `<div class="ws-filebar"><div class="ws-grow">${file ? `<strong><code>${esc(file.name)}</code></strong>` : ""}<div class="hint">${file ? `${kb(file.size)} · ` : ""}exported ${esc(r.exported || "at an unknown time")}${r.version ? ` by Satchel ${esc(r.version)}` : ""} · nothing has been written yet</div></div>${button("pickImport", "Choose another file…", { icon: "fa-solid fa-file-import", small: true })}</div>`;
+  const bar = `<div class="ws-filebar"><div class="wc-grow">${file ? `<strong><code>${esc(file.name)}</code></strong>` : ""}<div class="wc-hint">${file ? `${kb(file.size)} · ` : ""}exported ${esc(r.exported || "at an unknown time")}${r.version ? ` by Satchel ${esc(r.version)}` : ""} · nothing has been written yet</div></div>${button("pickImport", "Choose another file…", { icon: "fa-solid fa-file-import", small: true })}</div>`;
   const facts = `<div class="ws-facts" data-part="facts">${factsHtml(model)}</div>`;
-  const mods = model.modules.map(m => `<section class="ws-mod${m.ok ? "" : " ws-inactive"}" aria-label="${esc(m.title)}">
-      <header class="ws-mh"><h3>${esc(m.title)}</h3><span class="hint"><code>${esc(m.id)}</code>${m.version ? ` · file from ${esc(m.version)}` : ""}${m.how === "module" ? " · checked by the module's own import" : ""}</span><span class="ws-grow"></span><span data-part="badges-${m.i}">${m.badges.map((/** @type {any} */ b) => badge(b.level, b.text)).join("")}</span></header>
-      ${m.issues.length ? `<ul class="ws-issues">${m.issues.map((/** @type {any} */ x) => `<li>${icon(x.level)}<span>${esc(x.text)}${x.keys.length ? ` ${x.keys.map((/** @type {string} */ k) => `<code>${esc(k)}</code>`).join(", ")}` : ""}</span></li>`).join("")}</ul>` : ""}
-      ${m.rows.length ? `<div class="ws-table-box"><table class="ws-table ws-import-table"><thead><tr><th scope="col"><span class="ws-sr">Import</span></th><th scope="col">Setting</th><th scope="col">Now</th><th scope="col">From the file</th></tr></thead><tbody>${m.rows.map((/** @type {any} */ x) => x.refused
-        ? `<tr class="ws-refused"><td><input type="checkbox" disabled aria-label="${esc(x.label)}, refused"></td><td><strong>${esc(x.label)}</strong></td><td></td><td><span class="ws-bad">${icon("bad")}${esc(x.refused)}</span></td></tr>`
-        : `<tr class="${x.changed ? "" : "ws-dim"}"><td><input type="checkbox" data-change="tick" data-m="${x.i}" data-r="${x.j}" ${x.ticked ? "checked" : ""} aria-label="Import ${esc(x.label)}"></td><td><strong>${esc(x.label)}</strong><div class="hint"><code>${esc(x.key)}</code>${x.note ? ` · ${esc(x.note)}` : ""}</div></td><td><span class="ws-val">${esc(show(x.from))}</span></td><td><span class="ws-val${x.changed ? " ws-val-new" : ""}">${esc(show(x.to))}</span>${x.changed ? "" : ` <span class="hint">unchanged</span>`}</td></tr>`).join("")}</tbody></table></div>` : ""}
+  const mods = model.modules.map(m => `<section class="wc-panel ws-mod${m.ok ? "" : " ws-inactive"}" aria-label="${esc(m.title)}">
+      <header class="ws-mh"><h3>${esc(m.title)}</h3><span class="wc-hint"><code>${esc(m.id)}</code>${m.version ? ` · file from ${esc(m.version)}` : ""}${m.how === "module" ? " · checked by the module's own import" : ""}</span><span class="wc-grow"></span><span data-part="badges-${m.i}">${m.badges.map((/** @type {any} */ b) => badge(b.level, b.text)).join("")}</span></header>
+      ${m.issues.length ? `<ul class="wc-lines ws-issues">${m.issues.map((/** @type {any} */ x) => statusLine(x.level, x.text, { html: x.keys.length ? ` ${x.keys.map((/** @type {string} */ k) => `<code>${esc(k)}</code>`).join(", ")}` : "" })).join("")}</ul>` : ""}
+      ${m.rows.length ? `<div class="wc-table-box"><table class="wc-table ws-wide ws-import-table"><thead><tr><th scope="col"><span class="wc-sr">Import</span></th><th scope="col">Setting</th><th scope="col">Now</th><th scope="col">From the file</th></tr></thead><tbody>${m.rows.map((/** @type {any} */ x) => x.refused
+        ? `<tr class="ws-refused"><td><input type="checkbox" disabled aria-label="${esc(x.label)}, refused"></td><td><strong>${esc(x.label)}</strong></td><td></td><td><span class="wc-bad">${icon("bad")}${esc(x.refused)}</span></td></tr>`
+        : `<tr class="${x.changed ? "" : "ws-dim"}"><td><input type="checkbox" data-change="tick" data-m="${x.i}" data-r="${x.j}" ${x.ticked ? "checked" : ""} aria-label="Import ${esc(x.label)}"></td><td><strong${x.hint ? ` title="${esc(x.hint)}"` : ""}>${esc(x.label)}</strong><div class="wc-hint"><code>${esc(x.key)}</code>${x.note ? ` · ${esc(x.note)}` : ""}</div></td><td><span class="wc-val">${esc(show(x.from))}</span></td><td><span class="wc-val${x.changed ? " wc-val-new" : ""}">${esc(show(x.to))}</span>${x.changed ? "" : ` <span class="wc-hint">unchanged</span>`}</td></tr>`).join("")}</tbody></table></div>` : ""}
     </section>`).join("") || `<p>The file has no modules.</p>`;
   return `${bar}${facts}${mods}<footer class="ws-sticky" data-part="footer">${footerHtml(model)}</footer>`;
 }
 /** @param {any} model */
 export const factsHtml = model => model.facts.map((/** @type {any} */ f) => badge(f.level, f.text)).join("");
 /** @param {any} model */
-export const footerHtml = model => `<span class="hint">${esc(model.hint)}</span><span class="ws-grow"></span>${button("cancelImport", "Cancel", { icon: "fa-solid fa-xmark" })}${button("doImport", model.button, { icon: "fa-solid fa-file-import", primary: true, disabled: !model.ticked })}`;
+export const footerHtml = model => `<span class="wc-hint">${esc(model.hint)}</span><span class="wc-grow"></span>${button("cancelImport", "Cancel", { icon: "fa-solid fa-xmark" })}${button("doImport", model.button, { icon: "fa-solid fa-file-import", primary: true, disabled: !model.ticked })}`;
 
 /**
  * The maintenance page: Remove Satchel data (dry-run counts, type REMOVE).
  * @param {Record<string, number>} counts @param {[string, string][]} categories @param {string} word
  */
 export function maintenanceHtml(counts, categories, word) {
-  return `${pageHead("Maintenance")}<section class="ws-panel ws-pad"><form class="ws-cleanup" data-part="cleanup" autocomplete="off">
+  return `${pageHead("Maintenance")}<section class="wc-panel ws-pad"><form class="ws-cleanup" data-part="cleanup" autocomplete="off">
     <h3><i class="fa-solid fa-broom" aria-hidden="true"></i> Remove Satchel data</h3>
     <p>Removes what the Satchel stored. The counts are what would go now (a dry run); nothing changes until you confirm. Other modules' settings and data are never touched, including debug settings the <em>Debug logging for all</em> switch turned on (turn them off on the overview first if you want).</p>
-    ${categories.map(([k, label]) => `<div class="form-group"><label class="ws-check ws-grow"><input type="checkbox" name="${esc(k)}" ${k === "settings" ? "" : "checked"}> ${esc(label)}</label>${badge(counts[k] ? "info" : "off", String(counts[k] ?? 0), { title: "Would be removed now" })}</div>`).join("")}
-    <p class="hint">Also left behind, documented in the README: the key binding (if you changed it, Foundry keeps it in its own key binding settings).</p>
+    ${categories.map(([k, label]) => `<div class="form-group"><label class="ws-check wc-grow"><input type="checkbox" name="${esc(k)}" ${k === "settings" ? "" : "checked"}> ${esc(label)}</label>${badge(counts[k] ? "info" : "off", String(counts[k] ?? 0), { title: "Would be removed now" })}</div>`).join("")}
+    <p class="wc-hint">Also left behind, documented in the README: the key binding (if you changed it, Foundry keeps it in its own key binding settings).</p>
     <div class="form-group"><label for="ws-cleanup-confirm">Type <strong>${esc(word)}</strong> to confirm</label><div class="form-fields"><input type="text" id="ws-cleanup-confirm" name="confirm" autocomplete="off"></div></div>
-    <p class="ws-notice ws-bad" data-part="cleanup-error" role="alert" hidden></p>
-    <footer class="ws-row ws-end">${button("removeData", "Remove", { icon: "fa-solid fa-broom", primary: true })}</footer>
+    <p class="wc-banner wc-bad" data-part="cleanup-error" role="alert" hidden></p>
+    <footer class="wc-row wc-end">${button("removeData", "Remove", { icon: "fa-solid fa-broom", danger: true })}</footer>
   </form></section>`;
 }
