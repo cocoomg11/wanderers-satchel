@@ -160,7 +160,7 @@ test("views: escaped, actions wired, no status characters, roving tabindex", () 
   assert.match(nav, /class="wc-nav wc-muted"/); assert.match(nav, /wc-badge wc-warn wc-badge-sm">1</); assert.match(nav, /class="wc-side-foot"/);
   assert.equal((nav.match(/tabindex="0"/g) ?? []).length, 1);
   const ov = View.overviewHtml(HM.overviewModel({ items: evil, updates: new Map(), health: h, features: {}, debug: null, now: 0 }), { updateCheck: true, combinedHealth: true, id: "wanderers-satchel" });
-  assert.match(ov, /data-action="checkAll"/); assert.match(ov, /aria-label="Open &lt;img src=x&gt;"/);
+  assert.match(ov, /data-action="checkAll"/); assert.match(ov, /aria-label="&lt;img src=x&gt;: details"/);
   const mod = View.moduleHtml(HM.moduleModel({ item: items[0], entry: { id: "a" }, update: { status: "error", error: "x" }, health: h.get("a"), features: {}, debug: { rows: [], missing: [] }, extras: [], now: 0 }));
   assert.ok(!mod.includes("<b>")); assert.match(mod, /ws-muted-line/); assert.ok(!mod.includes("wc-banner"));
   assert.match(mod, /class="wc-pagehead"/); assert.match(mod, /class="wc-panel"/); assert.match(mod, /class="wc-cols"/);

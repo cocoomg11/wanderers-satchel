@@ -26,7 +26,9 @@ export function unregister(id) { const had = registered.delete(id); if (had) ref
 /** Installed module data for one id, as plain fields, or null. */
 export function moduleInfo(id) {
   const m = game.modules.get(id); if (!m) return null;
-  return { id, title: m.title, version: m.version, active: !!m.active, manifest: m.manifest, url: m.url, readme: m.readme, changelog: m.changelog, bugs: m.bugs, relationships: m.relationships };
+  // apiOpen (0.7.0): the module's api has an open() (the launcher's fallback); read on a GM's client only.
+  let apiOpen = false; try { apiOpen = !!game.user?.isGM && !!m.active && typeof m.api?.open === "function"; } catch { }
+  return { id, title: m.title, version: m.version, active: !!m.active, apiOpen, manifest: m.manifest, url: m.url, readme: m.readme, changelog: m.changelog, bugs: m.bugs, relationships: m.relationships };
 }
 
 /** Every entry the window shows (registrations override adapters; adapters only for installed modules). Never includes us. */
@@ -61,6 +63,23 @@ export async function openPanel(id) {
     const SC = foundry.applications.settings?.SettingsConfig;
     return new SC({ initialCategory: id }).render({ force: true });
   } catch (err) { console.warn(`${ID} | settings ${id}`, err); }
+}
+
+/**
+ * The launcher (0.7.0, GM only): opens the module's own main window. The entry's `open()` (registration or built-in adapter), else
+ * `game.modules.get(id).api.open()`. An `open()` returning false (nothing to open on this version) falls back to openPanel.
+ * @param {string} id
+ */
+export async function launch(id) {
+  if (!game.user?.isGM) return;
+  const e = entry(id); const mod = game.modules.get(id);
+  if (!mod?.active) return ui.notifications.warn(`${TITLE}: ${e?.title ?? id} isn't active in this world.`);
+  try {
+    if (typeof e?.open === "function") { const r = await e.open(); if (r !== false) return r; return openPanel(id); }
+    const api = /** @type {any} */ (mod).api;
+    if (typeof api?.open === "function") return await api.open();
+  } catch (err) { console.warn(`${ID} | open ${id}`, err); ui.notifications.error(`${TITLE}: couldn't open ${e?.title || id} (${/** @type {any} */ (err)?.message ?? err}).`); return; }
+  return openPanel(id);
 }
 
 /** Opens a link: http(s) in a new browser tab; a file in a module folder too (Foundry serves it as it is). */

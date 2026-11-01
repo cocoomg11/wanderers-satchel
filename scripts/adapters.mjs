@@ -27,6 +27,9 @@ const toolkit = {
   // The installed module's own title (it was renamed Wanderer's Toolkit in 1.27.2; older installs still say Wayfarer's).
   get title() { try { const t = game.modules.get("wayfarers-toolkit")?.title; return typeof t === "string" && t.trim() ? t.trim() : "Wanderer's Toolkit"; } catch { return "Wanderer's Toolkit"; } },
   openPanel: (/** @type {string} */ tab) => { const api = apiOf("wayfarers-toolkit"); return typeof api?.panel === "function" ? api.panel(tab) : false; },
+  // Launcher (0.7.0): its own api.open() when a version has one, else the control panel.
+  open: () => { const api = apiOf("wayfarers-toolkit"); return typeof api?.open === "function" ? api.open() : typeof api?.panel === "function" ? api.panel() : false; },
+  openLabel: "Control panel",
   health: async (/** @type {{ timeoutMs?: number }} */ opts = {}) => {
     const api = apiOf("wayfarers-toolkit"); if (!api) throw new Error("the toolkit's API isn't available");
     // 1.27.1+ uses timeoutMs per section (1.27.0 had a fixed 20 s there in practice); older versions ignore it.
@@ -57,6 +60,9 @@ const ringmaker = {
   id: "ringmaker",
   title: "Ringmaker",
   // openPanel left out: the generic fallback opens Ringmaker's registered settings menu ("Ringmaker tools").
+  // Launcher (0.7.0): api.open() (1.6.2+) opens the tools window; older versions fall back to that same menu.
+  open: () => { const api = apiOf("ringmaker"); return typeof api?.open === "function" ? api.open() : false; },
+  openLabel: "Tools window",
   health: async () => {
     const api = apiOf("ringmaker"); if (typeof api?.status !== "function") throw new Error("Ringmaker's API isn't available");
     const lines = ringmakerLines(api.status());
@@ -113,6 +119,9 @@ const redBook = {
   id: "red-book",
   title: "Red Book",
   openPanel: (/** @type {string} */ tab) => { const api = apiOf("red-book"); return typeof api?.panel === "function" ? api.panel(tab) : false; },
+  // Launcher (0.7.0): api.open() when it has one, else api.panel() (the main window).
+  open: () => { const api = apiOf("red-book"); return typeof api?.open === "function" ? api.open() : typeof api?.panel === "function" ? api.panel() : false; },
+  openLabel: "Red Book window",
   health: async (/** @type {{ timeoutMs?: number }} */ opts = {}) => {
     const api = apiOf("red-book"); if (!api) throw new Error("Red Book's API isn't available yet (it is set when Red Book is ready)");
     if (typeof api.healthReport === "function") return api.healthReport(typeof opts?.timeoutMs === "number" ? { timeoutMs: opts.timeoutMs } : {});

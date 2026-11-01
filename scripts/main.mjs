@@ -30,7 +30,7 @@ export const API = {
   /** The ids that registered themselves (adapters not included). */
   registrations: () => Reg.registrations(),
   /** GM: every entry shown in the hub: [{ id, title, source, provisional, … }]. A player gets undefined (0.5.0). */
-  entries: () => gmOnly(() => Reg.entries().map((/** @type {any} */ e) => ({ id: e.id, title: e.title || e.id, source: e.source, provisional: !!e.provisional, health: typeof e.health === "function", exportSettings: typeof e.exportSettings === "function", importSettings: !!e.importSettings, debugSetting: e.debugSetting ?? null, fixes: Object.keys(e.fixes ?? {}) }))),
+  entries: () => gmOnly(() => Reg.entries().map((/** @type {any} */ e) => ({ id: e.id, title: e.title || e.id, source: e.source, provisional: !!e.provisional, open: typeof e.open === "function", health: typeof e.health === "function", exportSettings: typeof e.exportSettings === "function", importSettings: !!e.importSettings, debugSetting: e.debugSetting ?? null, fixes: Object.keys(e.fixes ?? {}) }))),
   /** GM: opens the hub window. */
   open: () => gm() ? Hub.open() : undefined,
   /** GM: opens one module's control panel (its own window or settings). */

@@ -30,6 +30,8 @@
 .ws-hub .ws-cell.wc-ok i { color: var(--wc-ok); }
 .ws-hub tr.ws-inactive, .ws-hub tr.ws-inactive th { color: var(--wc-text-3); }
 .ws-hub .ws-go-cell { width: 40px; text-align: right; }
+.ws-hub .ws-launch-cell { width: 1%; white-space: nowrap; text-align: right; }
+.ws-hub .ws-launch { flex: none; }
 .ws-hub .ws-go { color: var(--wc-text-3); }
 
 /* ---------------------------------------------------------------- module page */

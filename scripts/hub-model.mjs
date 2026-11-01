@@ -226,7 +226,7 @@ export function overviewModel({ items, updates, health, features, debug, now, ba
   }
   const rows = items.map(m => {
     const h = health.get(m.id);
-    return { id: m.id, page: `module:${m.id}`, title: m.title, version: m.version ?? "", active: !!m.active, dot: dotOf(m, h), update: updateView(updates.get(m.id) ?? null, { enabled: features.updateCheck !== false, installed: m.installed !== false }), health: features.combinedHealth === false ? null : healthBadge(m, h) };
+    return { id: m.id, page: `module:${m.id}`, title: m.title, version: m.version ?? "", active: !!m.active, launcher: m.launcher ?? null, dot: dotOf(m, h), update: updateView(updates.get(m.id) ?? null, { enabled: features.updateCheck !== false, installed: m.installed !== false }), health: features.combinedHealth === false ? null : healthBadge(m, h) };
   });
   const tools = {
     transfer: features.sharedSettings !== false,
@@ -268,6 +268,7 @@ export function moduleModel({ item, entry, update, health, features, debug, extr
     ].filter(Boolean),
     extras: item.active ? extras : [],
     canPanel: !!item.can.panel,
+    launcher: item.launcher ?? null,
     canBackup: u.banner && features.settingsBackup !== false && features.sharedSettings !== false
   };
 }

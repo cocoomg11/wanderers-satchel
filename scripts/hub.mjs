@@ -117,7 +117,7 @@ export class HubApp extends RememberedWindow(foundry.applications.api.Applicatio
     window: { title: TITLE, icon: "fa-solid fa-bag-shopping", resizable: true },
     position: { width: 1000, height: 720 },
     actions: {
-      nav: HubApp.#onNav, panel: HubApp.#onPanel, docs: HubApp.#onLink, changelog: HubApp.#onLink, bugs: HubApp.#onLink, extra: HubApp.#onExtra,
+      nav: HubApp.#onNav, panel: HubApp.#onPanel, launch: HubApp.#onLaunch, docs: HubApp.#onLink, changelog: HubApp.#onLink, bugs: HubApp.#onLink, extra: HubApp.#onExtra,
       recheckUpdates: HubApp.#onRecheck, checkAll: HubApp.#onCheckAll, healthOne: HubApp.#onHealthOne, healthAgain: HubApp.#onCheckAll, healthPost: HubApp.#onPost, healthFilter: HubApp.#onFilter,
       export: HubApp.#onExport, pickImport: HubApp.#onPickImport, doImport: HubApp.#onImport, cancelImport: HubApp.#onCancelImport, removeData: HubApp.#onRemove, resetWindows: HubApp.#onResetWindows,
       healthFix: HubApp.#onFix, dismissNews: HubApp.#onDismiss, backupNow: HubApp.#onBackup, backups: HubApp.#onBackups, restoreBackup: HubApp.#onRestore, deleteBackup: HubApp.#onDeleteBackup
@@ -310,6 +310,8 @@ export class HubApp extends RememberedWindow(foundry.applications.api.Applicatio
   }
   /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
   static #onPanel(_ev, target) { if (game.user?.isGM) Reg.openPanel(target.dataset.id); }
+  /** The launcher (0.7.0): the module's own window. @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static #onLaunch(_ev, target) { if (game.user?.isGM) Reg.launch(target.dataset.id ?? ""); }
   /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
   static #onLink(_ev, target) {
     if (!game.user?.isGM) return;

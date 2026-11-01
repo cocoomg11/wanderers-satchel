@@ -59,7 +59,7 @@ The Satchel only opens and reads; every module keeps its own settings and window
 
 1. Install and enable the module in your world (see [Install](#install)).
 2. Open it: **Game Settings › Wanderer's Satchel › Open the Satchel**, the bag button in the token controls, or the button in the Settings sidebar tab. You can also give it a key under **Configure Controls** (none is set by default).
-3. The **Overview** lists every module. Pick one in the sidebar (or its row) for its page and **Open control panel** to get to that module's own window; **Check everything** runs one health report for all.
+3. The **Overview** lists every module. Each row's **Open** button (named after the window, such as *Control panel* or *Tools window*) opens that module's own main window; the sidebar (or the row's arrow) opens its page in the Satchel. **Check everything** runs one health report for all.
 
 <!-- screenshot: the hub window, overview -->
 
@@ -71,9 +71,9 @@ GM only. A window (about 1000 px wide, resizable) with a sidebar on the left and
 
 **Sidebar:** *Overview*; *Modules*, one link per module the Satchel knows (the ones it recognises when installed (see [The Wanderer's family](#the-wanderers-family)), and any module that registered itself) with a status dot (the worst result of its last health check since the page loaded; hollow when not active or not checked yet) and a count of its warnings and problems; *Tools*: Health check, Settings transfer, Maintenance; the Satchel's version at the bottom. Inactive modules are dimmed. The arrow keys, Home and End move between links; Enter opens one.
 
-**Overview:** *What's new* cards when a module was updated (see below), three tiles (modules active, updates available, last health check), a table of modules (version, update state such as *Update available 1.2.0 → 1.3.0*, health badge; each row opens that module's page; in a narrow window the table scrolls sideways in its own box), and cards for Settings transfer (Export, Import…), Settings backups, Debug logging for all and Maintenance. **Check now** (updates) and **Check everything** (health) are at the top.
+**Overview:** *What's new* cards when a module was updated (see below), three tiles (modules active, updates available, last health check), a table of modules (version, update state such as *Update available 1.2.0 → 1.3.0*, health badge, an **Open** button for modules that have a main window, and an arrow to that module's page; in a narrow window the table scrolls sideways in its own box), and cards for Settings transfer (Export, Import…), Settings backups, Debug logging for all and Maintenance. **Check now** (updates) and **Check everything** (health) are at the top.
 
-**A module's page:** title, id, version, *Active* / *Not active*, and whether it comes from a built-in adapter or the module's own registration; **Open control panel** (the module's own panel; without one, its first settings menu; without that, Configure Settings). An update banner (*Update available x → y*) shows only when a newer version is out, with *Changelog* when the module has one and *Back up settings*; *newer than the latest release* and *Couldn't check* are one muted line. Below: that module's own health report (**Run check** / **Run again** checks it alone), *In the Satchel* (how its settings are exported and imported, its own Debug logging switch), *Links* (Docs, Changelog, Report issue from its `module.json`; a readme or changelog file in the module folder opens as served by Foundry) and *Module data* (the module's own extra actions, such as **Remove toolkit data…**).
+**A module's page:** title, id, version, *Active* / *Not active*, and whether it comes from a built-in adapter or the module's own registration; **Open** (the module's main window, when it has one; see *Registration fields*) and **Settings** / **Open control panel** (the module's own panel; without one, its first settings menu; without that, Configure Settings). An update banner (*Update available x → y*) shows only when a newer version is out, with *Changelog* when the module has one and *Back up settings*; *newer than the latest release* and *Couldn't check* are one muted line. Below: that module's own health report (**Run check** / **Run again** checks it alone), *In the Satchel* (how its settings are exported and imported, its own Debug logging switch), *Links* (Docs, Changelog, Report issue from its `module.json`; a readme or changelog file in the module folder opens as served by Foundry) and *Module data* (the module's own extra actions, such as **Remove toolkit data…**).
 
 **Update check:** asks the module's manifest URL for the latest version (for GitHub "latest release" manifests, GitHub's release API; a module without a manifest URL whose project URL is a GitHub repository is checked against that repository's latest release). Answers are kept for this browser session (6 hours; a failed check is tried again after 15 minutes). If the check can't reach the server in 8 seconds, or the answer can't be read, it says *Couldn't check* and nothing else happens. **Check now** asks again. The Satchel checks itself too. It never installs anything: updates are done in Foundry's Setup screen.
 
@@ -91,7 +91,7 @@ Each module has its own time limit, so one slow module never holds up or fails t
 - A module past its limit shows *No answer yet* as a warning, not a failure. If it answers later, its result replaces that line. **Check again** starts over.
 - A check that throws is shown as failed; the rest still run.
 
-**Filter:** the count chips above the report (OK, Warnings, Problems, and Still checking / Not active when there are any) are toggle buttons. Press one or several (for example Warnings and Problems) to see only those lines; **All** shows everything again. Modules with no matching line are hidden, and the page says how many. The counts on the chips are always the totals. Each module page's health panel has the same chips. The choice is remembered in this browser and shared by the Health check page and the module pages; in a private window it lasts until the hub closes.
+**Filter:** the count chips above the report (OK, Warnings, Problems, and Still checking / Not active when there are any) are toggle buttons. Press one or several (for example Warnings and Problems) to see only those lines; **All** shows everything again. Modules with no matching line are hidden, and the page says how many. The counts on the chips are always the totals. Each module page's health panel has the same chips. The choice is remembered in this browser and shared by the Health check page and the module pages; in a private window it lasts until the hub closes. Until you choose, the report opens on **Warnings, Problems and Still checking** with the OK lines hidden behind a **Show all (N OK)** chip; when nothing needs a look it is one line, *All N checks OK*, with the same chip.
 
 **Fix buttons** (switch *Health fix buttons*): a line a module can repair itself has a **Fix** button (with the module's own label, such as *Rebuild index*). It may ask first. After it runs, that module is checked again. The Satchel's own group in the report checks its GM-only journal (Fix: *Make GM only* when a player can see it), its backups, failed update checks and its debug logging.
 
@@ -187,10 +187,10 @@ The Satchel keeps these things:
 
 | Member | | What it does |
 | --- | --- | --- |
-| `register({ id, title?, openPanel?, health?, healthTimeoutMs?, exportSettings?, importSettings?, debugSetting?, docs?, skipSettings?, validators?, fixes? })` | stable | Adds or replaces a module (sidebar link and page). Returns `{ ok, error, warnings }`. See below. |
+| `register({ id, title?, open?, openLabel?, openPanel?, health?, healthTimeoutMs?, exportSettings?, importSettings?, debugSetting?, docs?, skipSettings?, validators?, fixes? })` | stable | Adds or replaces a module (sidebar link and page). Returns `{ ok, error, warnings }`. See below. |
 | `unregister(id)` | stable | Removes a registration (a built-in adapter shows again). |
 | `registrations()` | stable | Ids that registered themselves. |
-| `entries()` | experimental | GM (0.5.0; players got it before): what the hub shows: `[{ id, title, source, provisional, health, exportSettings, importSettings, debugSetting, fixes }]` (`fixes`: the action ids). |
+| `entries()` | experimental | GM (0.5.0; players got it before): what the hub shows: `[{ id, title, source, provisional, open, health, exportSettings, importSettings, debugSetting, fixes }]` (`fixes`: the action ids). |
 | `open()` | stable | GM: opens the hub on Overview. |
 | `openPanel(id)` | stable | GM: opens one module's control panel. |
 | `health({ ids?, window? })` | stable | GM: runs the combined check; returns `{ summary, groups }`, or opens the window. Undefined when off. |
@@ -208,7 +208,9 @@ The Satchel keeps these things:
 Registration fields (all optional except `id`):
 
 - `title`: the title in the sidebar and on its page (default: the module's title).
-- `openPanel()`: opens your control panel. Return `false` to fall back to your settings menu.
+- `open()` (0.7.0): opens your module's main window. The Satchel shows an **Open** button for your module on the Overview and at the top of your page, so the GM can open every tool from one place. Return `false` to fall back to `openPanel`. Without it, the Satchel uses `game.modules.get(id).api.open()` when that is a function; with neither, no Open button is shown. Called on a GM's client only.
+- `openLabel` (0.7.0): the Open button's text (default *Open*, at most 40 characters), e.g. `"Quest board"`.
+- `openPanel()`: opens your control panel (the page's *Settings* button when you have `open`). Return `false` to fall back to your settings menu.
 - `health({ timeoutMs })`: called with the time your check has (the Satchel's limit for it less a small margin), so your own per-part limits can match; ignore it if you don't need it. Returns your check, any of: `[{ title, lines: [{ level, text }] }]` (wanderers-core's health report), one `{ title, lines }`, `{ sections }`, `{ report }` or a plain array of lines. `level` is `ok`, `warn`, `bad`, `off` or `info`; `text` may be HTML (shown as plain text). May be async. Called only on a GM's client, so it may be GM-only.
 - `healthTimeoutMs`: how long your check may take after the first one (5 000 to 300 000; the first check after a load always gets at least 90 s). Without it the Satchel adapts to how long your last check took.
 - `exportSettings()`: returns your settings as any JSON value; stored as is in the bundle.
@@ -217,12 +219,14 @@ Registration fields (all optional except `id`):
 - `docs: { url, readme, changelog, bugs }`: links that override your `module.json`.
 - `skipSettings`: keys of record-type settings never exported or imported. `showModuleData` and `windowPlacement` (wanderers-core 0.5.0 client records) are always left out, listed or not.
 - `fixes: { actionId: (ctx) => result }`: actions your health lines can point to (see below). Ids are letters, digits and `_ . : -`, at most 64; ids starting `satchel:` are the Satchel's own.
-- `validators: { key: (value, def) => true | "reason" | { ok: true, value } }`: extra import checks for your Object and Array settings, run after the Satchel's plain-data check (the same contract as wanderers-core's `readImport` validators). `openPanel`, `health`, `importSettings` and `exportSettings` are only called on a GM's client.
+- `validators: { key: (value, def) => true | "reason" | { ok: true, value } }`: extra import checks for your Object and Array settings, run after the Satchel's plain-data check (the same contract as wanderers-core's `readImport` validators). `open`, `openPanel`, `health`, `importSettings` and `exportSettings` are only called on a GM's client.
 
 ```js
 Hooks.once("ready", () => {
   game.modules.get("wanderers-satchel")?.api?.register({
     id: "my-module",
+    open: () => MyModule.openWindow(),
+    openLabel: "My window",
     openPanel: () => MyModule.openPanel(),
     health: () => MyModule.healthSections(),
     debugSetting: "debug",

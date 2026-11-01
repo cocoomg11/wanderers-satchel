@@ -147,3 +147,58 @@ test("module page: the same fold and all-OK line", () => {
   const html = View.moduleHtml(/** @type {any} */ (model), { filter: Fm.defaultFilter() });
   assert.match(html, /All 2 checks OK/); assert.match(html, /Show all \(2 OK\)/); assert.doesNotMatch(html, /No lines match/);
 });
+
+// ---------------------------------------------------------------- 3. Launcher: an Open button per module that has one
+import * as R from "../scripts/registry-model.mjs";
+import { readFileSync } from "node:fs";
+
+test("registration: open() and openLabel are read; bad types warn", () => {
+  const fn = () => {};
+  const r = R.normalizeRegistration({ id: "m", open: fn, openLabel: "  Quest board  " });
+  assert.equal(r.entry.open, fn); assert.equal(r.entry.openLabel, "Quest board"); assert.deepEqual(r.warnings, []);
+  const bad = R.normalizeRegistration({ id: "m", open: "x", openLabel: 3 });
+  assert.equal(bad.entry.open, undefined); assert.equal(bad.entry.openLabel, undefined);
+  assert.deepEqual(bad.warnings, ["open should be a function", "openLabel should be text"]);
+  assert.equal(R.normalizeRegistration({ id: "m", openLabel: "x".repeat(99) }).entry.openLabel.length, R.OPEN_LABEL_MAX);
+});
+
+test("launcherOf: entry open() first, else the module's api.open(), only when active; none otherwise", () => {
+  const open = () => {};
+  assert.deepEqual(R.launcherOf({ open, openLabel: "Board" }, { active: true }), { label: "Board", how: "entry" });
+  assert.deepEqual(R.launcherOf({ open }, { active: true }), { label: "Open", how: "entry" });
+  assert.deepEqual(R.launcherOf({}, { active: true, apiOpen: true }), { label: "Open", how: "api" });
+  assert.equal(R.launcherOf({}, { active: true, apiOpen: false }), null, "no open: no button (e.g. a module with no window)");
+  assert.equal(R.launcherOf({ open }, { active: false, apiOpen: true }), null);
+  assert.equal(R.launcherOf({ open }, null), null);
+  const card = R.cardModel({ id: "m", source: "registered", open, openLabel: "Board" }, { id: "m", title: "M", version: "1", active: true });
+  assert.deepEqual(card.launcher, { label: "Board", how: "entry" });
+});
+
+test("launcher buttons on the Overview rows and the module page header, escaped, wired to the launch action", () => {
+  const items = [
+    { ...R.cardModel({ id: "a", source: "registered", open: () => {}, openLabel: "Board<x>" }, { id: "a", title: "A<b>", version: "1", active: true }) },
+    { ...R.cardModel({ id: "b", source: "adapter" }, { id: "b", title: "B", version: "1", active: true }) }
+  ];
+  const ov = View.overviewHtml(HM.overviewModel({ items, updates: new Map(), health: new Map(), features: {}, debug: null, now: 0 }), { updateCheck: false, combinedHealth: false, id: "wanderers-satchel" });
+  assert.equal((ov.match(/data-action="launch"/g) ?? []).length, 1);
+  assert.match(ov, /data-action="launch" data-id="a" aria-label="A&lt;b&gt;: Board&lt;x&gt;"/);
+  assert.doesNotMatch(ov, /<b>|<x>/);
+  const m = HM.moduleModel({ item: items[0], entry: { id: "a" }, update: null, health: null, features: {}, debug: { rows: [], missing: [] }, extras: [], now: 0 });
+  const page = View.moduleHtml(m);
+  assert.match(page, /wc-btn wc-btn-primary ws-launch" data-action="launch" data-id="a"/);
+  assert.match(page, /data-action="panel" data-id="a"[^>]*><i class="fa-solid fa-sliders" aria-hidden="true"><\/i><span>Settings</);
+  const none = View.moduleHtml(HM.moduleModel({ item: items[1], entry: { id: "b" }, update: null, health: null, features: {}, debug: { rows: [], missing: [] }, extras: [], now: 0 }));
+  assert.doesNotMatch(none, /data-action="launch"/); assert.match(none, /Open control panel/);
+});
+
+test("launcher wiring (source checks): GM-gated action, adapters for the toolkit, Ringmaker and Red Book, none for Loot Ledger", () => {
+  const hub = readFileSync(new URL("../scripts/hub.mjs", import.meta.url), "utf8");
+  assert.match(hub, /launch: HubApp\.#onLaunch/); assert.match(hub, /static #onLaunch\(_ev, target\) \{ if \(game\.user\?\.isGM\) Reg\.launch/);
+  const reg = readFileSync(new URL("../scripts/registry.mjs", import.meta.url), "utf8");
+  assert.match(reg, /export async function launch\(id\) \{\n {2}if \(!game\.user\?\.isGM\) return;/);
+  assert.match(reg, /apiOpen = !!game\.user\?\.isGM && !!m\.active && typeof m\.api\?\.open === "function"/);
+  const ad = readFileSync(new URL("../scripts/adapters.mjs", import.meta.url), "utf8");
+  for (const id of ["wayfarers-toolkit", "ringmaker", "red-book"]) assert.match(ad, new RegExp(`open: \\(\\) => \\{ const api = apiOf\\("${id}"\\)`), id);
+  const ll = ad.slice(ad.indexOf("const lootLedger"), ad.indexOf("const redBook"));
+  assert.doesNotMatch(ll, /\bopen:/);
+});

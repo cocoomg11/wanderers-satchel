@@ -64,10 +64,11 @@ export function overviewHtml(ov, o) {
       <td><code>${esc(r.version)}</code></td>
       ${o.updateCheck ? `<td><span class="ws-cell wc-${tone(r.update.level)}"${r.update.title ? ` title="${esc(r.update.title)}"` : ""}><i class="${esc(r.update.icon)}" aria-hidden="true"></i><span>${esc(r.update.text)}</span></span></td>` : ""}
       ${o.combinedHealth && r.health ? `<td>${badge(r.health.level, r.health.text)}</td>` : ""}
-      <td class="ws-go-cell"><button type="button" class="wc-btn wc-btn-ghost wc-btn-icon ws-go" data-action="nav" data-page="${esc(r.page)}" aria-label="Open ${esc(r.title)}" title="Open ${esc(r.title)}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></td>
+      <td class="ws-launch-cell">${r.launcher ? launchButton(r.id, r.title, r.launcher, { small: true }) : ""}</td>
+      <td class="ws-go-cell"><button type="button" class="wc-btn wc-btn-ghost wc-btn-icon ws-go" data-action="nav" data-page="${esc(r.page)}" aria-label="${esc(r.title)}: details" title="${esc(r.title)}: details"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></td>
     </tr>`).join("");
   const table = ov.rows.length ? `<div class="wc-table-box"><table class="wc-table ws-wide" aria-label="Modules">
-      <thead><tr><th scope="col">Module</th><th scope="col">Version</th>${o.updateCheck ? `<th scope="col">Updates</th>` : ""}${o.combinedHealth ? `<th scope="col">Health</th>` : ""}<th scope="col"><span class="wc-sr">Open</span></th></tr></thead>
+      <thead><tr><th scope="col">Module</th><th scope="col">Version</th>${o.updateCheck ? `<th scope="col">Updates</th>` : ""}${o.combinedHealth ? `<th scope="col">Health</th>` : ""}<th scope="col"><span class="wc-sr">Open the module's window</span></th><th scope="col"><span class="wc-sr">Details</span></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`
     : `<p class="wc-panel ws-pad">None of the known modules is installed, and no module has registered with the Satchel.</p>`;
   const t = ov.tools;
@@ -99,7 +100,7 @@ export function overviewHtml(ov, o) {
  */
 export function moduleHtml(m, { filter = new Set(), fixes = false, news = "" } = {}) {
   const head = `<header class="wc-pagehead"><div class="wc-pagehead-title"><h2>${esc(m.title)}</h2><div class="wc-pagehead-meta"><code>${esc(m.id)}${m.version ? ` · ${esc(m.version)}` : ""}</code>${m.badges.map((/** @type {any} */ b) => badge(b.level, b.text, { title: b.title })).join("")}</div></div>
-    ${button("panel", "Open control panel", { icon: "fa-solid fa-sliders", primary: true, data: { id: m.id }, disabled: !m.canPanel, title: m.canPanel ? "" : "The module isn't active in this world." })}</header>`;
+    <div class="wc-row">${m.launcher ? launchButton(m.id, m.title, m.launcher, { primary: true }) : ""}${button("panel", m.launcher ? "Settings" : "Open control panel", { icon: "fa-solid fa-sliders", primary: !m.launcher, data: { id: m.id }, disabled: !m.canPanel, title: m.canPanel ? (m.launcher ? "Opens the module's control panel or settings" : "") : "The module isn't active in this world." })}</div></header>`;
   const u = m.update;
   const upd = u.banner ? `<div class="wc-banner wc-warn" role="status"><i class="${esc(u.icon)}" aria-hidden="true"></i><span class="wc-banner-text"><strong>Update available <code>${esc(u.from)}</code> → <code>${esc(u.to)}</code></strong> <span class="wc-hint">· ${esc(u.title)}</span></span>${m.links.some((/** @type {any} */ l) => l.act === "changelog") ? button("changelog", "Changelog", { small: true, data: { id: m.id } }) : ""}${m.canBackup ? button("backupNow", "Back up settings", { small: true, icon: "fa-solid fa-box-archive" }) : ""}</div>`
     : m.installed && u.level !== "ok" ? `<p class="ws-muted-line wc-${tone(u.level)}"${u.title ? ` title="${esc(u.title)}"` : ""}><i class="${esc(u.icon)}" aria-hidden="true"></i> ${esc(u.text)}</p>` : "";
@@ -123,6 +124,17 @@ export function moduleHtml(m, { filter = new Set(), fixes = false, news = "" } =
   const data = m.extras.length ? panel("Module data", `<p class="wc-hint">Opens the module's own window.</p><div class="wc-row">${m.extras.map((/** @type {any} */ x) => button("extra", x.label, { icon: x.icon, small: true, data: { id: m.id, i: String(x.i) } })).join("")}</div>`) : "";
   const notes = m.notes.length ? `<div class="wc-hint ws-notes">${m.notes.map((/** @type {string} */ n) => `<p>${esc(n)}</p>`).join("")}</div>` : "";
   return `${head}${upd}${news}${notes}<div class="wc-cols">${healthPanel || "<div></div>"}<div class="ws-side-panels">${satchel}${links}${data}</div></div>`;
+}
+
+/**
+ * A launcher button (0.7.0): opens the module's own window (the hub's `launch` action). The label is the module's `openLabel`
+ * ("Open" by default); the accessible name says which module.
+ * @param {string} id @param {string} title @param {{ label: string }} l @param {{ primary?: boolean, small?: boolean }} [o]
+ */
+export function launchButton(id, title, l, o = {}) {
+  const cls = ["wc-btn", o.primary ? "wc-btn-primary" : "", o.small ? "wc-btn-sm" : "", "ws-launch"].filter(Boolean).join(" ");
+  const name = l.label === "Open" ? `Open ${title}` : `${title}: ${l.label}`;
+  return `<button type="button" class="${cls}" data-action="launch" data-id="${esc(id)}" aria-label="${esc(name)}" title="${esc(name)}"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i><span>${esc(l.label)}</span></button>`;
 }
 
 /** A health group's sections (no group header). @param {any} g */

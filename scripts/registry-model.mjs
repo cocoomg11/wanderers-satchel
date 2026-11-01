@@ -2,13 +2,15 @@
  * The registry, pure (tested in Node): reading a registration, merging built-in adapters with registrations, the card model for one
  * module, documentation links and the "Debug logging for all" plan. No Foundry calls.
  *
- * Entry: { id, title, source: "adapter" | "registered", provisional, openPanel?, health?, exportSettings?, importSettings?,
+ * Entry: { id, title, source: "adapter" | "registered", provisional, open?, openLabel?, openPanel?, health?, exportSettings?, importSettings?,
  *          debugSetting?: { namespace, key }, docs?: { url, readme, changelog, bugs }, skipSettings: [key], validators?: { key: fn },
  *          healthTimeoutMs?: number, fixes?: { actionId: fn }, notes: [text] }
  */
 import { FIX_ACTION_RE } from "../vendor/wanderers-core/index.mjs";
 
-const FN_FIELDS = ["openPanel", "health", "exportSettings"];
+const FN_FIELDS = ["open", "openPanel", "health", "exportSettings"];
+/** Longest `openLabel` kept (characters). */
+export const OPEN_LABEL_MAX = 40;
 const ID_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 const DOC_KEYS = ["url", "readme", "changelog", "bugs"];
 /** A fix action id (health lines name one with `fix: "id"` or `fix: { label, action: "id" }`): core's `FIX_ACTION_RE` (0.6.0). "satchel:" ids are the Satchel's own. */
@@ -29,6 +31,9 @@ export function normalizeRegistration(opts) {
   for (const k of FN_FIELDS) {
     if (opts[k] === undefined) continue;
     if (typeof opts[k] === "function") entry[k] = opts[k]; else warnings.push(`${k} should be a function`);
+  }
+  if (opts.openLabel !== undefined) {
+    if (typeof opts.openLabel === "string" && opts.openLabel.trim()) entry.openLabel = opts.openLabel.trim().slice(0, OPEN_LABEL_MAX); else warnings.push("openLabel should be text");
   }
   if (opts.importSettings !== undefined) {
     const i = opts.importSettings;
@@ -75,7 +80,7 @@ export function normalizeRegistration(opts) {
     if (Array.isArray(opts.skipSettings)) entry.skipSettings = opts.skipSettings.filter(k => typeof k === "string" && k);
     else warnings.push("skipSettings should be a list of setting keys");
   }
-  const known = new Set(["id", "title", ...FN_FIELDS, "importSettings", "debugSetting", "docs", "skipSettings", "validators", "healthTimeoutMs", "fixes"]);
+  const known = new Set(["id", "title", ...FN_FIELDS, "openLabel", "importSettings", "debugSetting", "docs", "skipSettings", "validators", "healthTimeoutMs", "fixes"]);
   for (const k of Object.keys(opts)) if (!known.has(k)) warnings.push(`unknown field "${k}" ignored`);
   return { ok: true, entry, error: null, warnings };
 }
@@ -114,6 +119,19 @@ export function docLinks(mod = {}, docs = {}) {
 }
 
 /**
+ * The launcher button for a module (0.7.0): { label, how: "entry" | "api" } or null. The entry's own `open()` (a registration's
+ * or a built-in adapter's), else the module's `api.open()` when it is a function (`apiOpen`, read by registry.mjs on a GM's client
+ * only). Only for an active module. Label: the entry's `openLabel`, else "Open".
+ * @param {any} entry @param {{ active?: boolean, apiOpen?: boolean } | null} mod
+ */
+export function launcherOf(entry, mod) {
+  if (!mod?.active) return null;
+  if (typeof entry?.open === "function") return { label: entry.openLabel || "Open", how: "entry" };
+  if (mod.apiOpen) return { label: entry?.openLabel || "Open", how: "api" };
+  return null;
+}
+
+/**
  * One card: what the window draws for a module. `mod`: { id, title, version, active, manifest, url, readme, changelog, bugs } or null
  * when not installed; `update`: a result from checkUpdate or null. Buttons are on only when they can do something.
  * @param {any} entry @param {any} mod @param {any} [update]
@@ -130,6 +148,7 @@ export function cardModel(entry, mod, update = null) {
     source: entry.source, provisional: !!entry.provisional,
     update,
     notes: entry.notes ?? [],
+    launcher: launcherOf(entry, mod),
     can: {
       panel: active,
       health: active && typeof entry.health === "function",
