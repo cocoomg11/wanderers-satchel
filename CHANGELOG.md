@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0 (2026-11-01)
+
+Easier to use day to day: shorter release notes, a health check that opens on what needs a look, one place to open every tool, and a default key. Nothing to do after updating.
+
+### Added
+
+- **Open buttons.** The Overview has an **Open** button on each module's row, and each module's page has one at the top, which open that module's own main window: Wanderer's Toolkit's control panel, Red Book's window, Ringmaker's tools window. A module without a main window (Loot Ledger) has no button. The page's other button is now called **Settings** (it still opens the control panel or settings, as before).
+- **Default key Shift+G** opens the Satchel (GM only). A key you set before is kept; change it in Configure Controls (*Open Wanderer's Satchel*).
+- **Button in the token controls, per browser.** Maintenance › *Opening the Satchel* hides or shows the bag button in this browser only (on by default) and shows the key in use. The world switch *Scene control button* still turns it off for everyone.
+- For other modules: a registration may pass `open()` and `openLabel` (README, *Registration fields*); without them the Satchel uses the module's `api.open()` when it has one.
+
+### Changed
+
+- **What's new is short.** Each version shows its points one line each (the first sentence). The full text is under *Full notes*, and sections meant for developers (Under the hood, Tests, CI, Untested in Foundry, checklists and similar) are under *Developer notes*, both folded. Notes without such sections read as before.
+- **The health check opens on Warnings, Problems and Still checking.** OK lines are behind a **Show all (N OK)** chip; with nothing to look at, the report is one line, *All N checks OK*. Your own choice of chips, All included, is still remembered in this browser.
+
+### Untested in Foundry
+
+- What's new after updating a module: a long changelog (toolkit, Red Book) shows one line per point; *Full notes* and *Developer notes* open and close with the mouse and the keyboard (Enter / Space on the summary, no game pause); a short changelog (Loot Ledger) shows as before; both themes.
+- Health check in a browser with no filter stored: opens on Warnings + Problems (+ Still checking while running); *Show all (N OK)* shows every line and is remembered after a reload; with everything OK the single *All N checks OK* line shows on the Health check page and on a module's page. A browser that had a filter stored from 0.6 keeps it.
+- Open buttons: the toolkit's row opens its control panel, Red Book's its window, Ringmaker's (1.6.2+) its tools window (1.6.1 and older: the Ringmaker tools menu); Loot Ledger has none; an inactive module has none; the module page's *Settings* button still opens the control panel; a player never sees the hub.
+- Configure Controls lists *Open Wanderer's Satchel* with Shift+G; it opens the hub, no warning icon for a clash with core or dnd5e, the toolkit (Shift+K) or Red Book (Shift+R); a key set under 0.6 is kept; a player pressing Shift+G gets nothing.
+- Token controls: the bag button shows for a GM; unticking *Button in the token controls* removes it at once in that browser only (another GM still has it); ticking brings it back; the world feature off removes it for everyone and the panel says so.
+- Settings transfer › Export leaves out `showSceneButton`; Remove Satchel data › *Reset settings* resets it.
+
 ## 0.6.1 (2026-11-01)
 
 Moves to **wanderers-core 0.5.1** (patch: every shared "Module data" journal folder is hidden, and duplicates are merged when the store is filed). No Satchel API, setting or data changes.
