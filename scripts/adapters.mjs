@@ -18,13 +18,14 @@ const apiOf = id => {
 const setting = (ns, key) => { try { return game.settings.get(ns, key); } catch { return undefined; } };
 
 /**
- * Wayfarer's Toolkit. Health: api.healthReport() (1.27 and later: core's report, no chat card); older versions only have
+ * Wanderer's Toolkit (id wayfarers-toolkit). Health: api.healthReport() (1.27 and later: core's report, no chat card); older versions only have
  * api.health(), which also whispers the toolkit's own card. Settings: read and imported by the Satchel (the toolkit dropped its
  * own Settings export / import in 1.27); on an older toolkit that still has api.settingsIO, its own checks are used for import.
  */
 const toolkit = {
   id: "wayfarers-toolkit",
-  title: "Wayfarer's Toolkit",
+  // The installed module's own title (it was renamed Wanderer's Toolkit in 1.27.2; older installs still say Wayfarer's).
+  get title() { try { const t = game.modules.get("wayfarers-toolkit")?.title; return typeof t === "string" && t.trim() ? t.trim() : "Wanderer's Toolkit"; } catch { return "Wanderer's Toolkit"; } },
   openPanel: (/** @type {string} */ tab) => { const api = apiOf("wayfarers-toolkit"); return typeof api?.panel === "function" ? api.panel(tab) : false; },
   health: async (/** @type {{ timeoutMs?: number }} */ opts = {}) => {
     const api = apiOf("wayfarers-toolkit"); if (!api) throw new Error("the toolkit's API isn't available");

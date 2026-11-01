@@ -15,6 +15,7 @@ Help around module updates: what's out, what changed, a settings backup before a
 
 ### Changed
 
+- **Toolkit card title** comes from the installed module's own title ("Wanderer's Toolkit" since 1.27.2; older installs keep their name), with "Wanderer's Toolkit" as the fallback. The module id is unchanged.
 - **`api.entries()` is GM only.** It returned the registration records to players' clients, and nothing outside the hub uses it there (the known modules only call `register()`). A player now gets the "GM only" notice and `undefined`. Each record also lists the module's fix action ids (`fixes`).
 - **Remove Satchel data** has a new category for the GM-only journal (off by default: it holds the backups), and *Kept in this browser* also clears the time of the last daily check.
 - **Red Book adapter**: `onlineHudCollapsed` and `nextSession` are on its skip list too (Red Book 0.4+ registers itself with its own list, which replaces the adapter).

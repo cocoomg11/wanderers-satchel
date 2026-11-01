@@ -6,7 +6,7 @@
 
 /**
  * Record-type settings per known module: stored data, window positions or bookkeeping, not choices, so never exported or
- * imported. Wayfarer's Toolkit: its own settings file's skip list plus its per-browser window positions. Red Book: its hidden
+ * imported. Wanderer's Toolkit: its own settings file's skip list plus its per-browser window positions. Red Book: its hidden
  * record settings (0.5.0; Red Book 0.4+ registers itself with the same list, which replaces this adapter once it has).
  */
 export const SKIP = {

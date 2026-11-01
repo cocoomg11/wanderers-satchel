@@ -162,3 +162,14 @@ test("skip lists: toolkit adds api.settingsRecords() on a GM client, keeps the s
   assert.deepEqual(A.skipFor("wayfarers-toolkit", { settingsRecords: () => { throw new Error("x"); } }), A.SKIP["wayfarers-toolkit"]);
   assert.deepEqual(A.skipFor("ringmaker", { settingsRecords: () => ["x"] }), []);
 });
+
+test("toolkit adapter: title follows the installed module, with a Wanderer's fallback", () => {
+  globalThis.game = fakeGame({ "wayfarers-toolkit": { active: true, title: "Wayfarer's Toolkit" } });
+  assert.equal(byId("wayfarers-toolkit").title, "Wayfarer's Toolkit");
+  globalThis.game = fakeGame({ "wayfarers-toolkit": { active: true, title: "Wanderer's Toolkit" } });
+  assert.equal(byId("wayfarers-toolkit").title, "Wanderer's Toolkit");
+  globalThis.game = fakeGame({ "wayfarers-toolkit": { active: true } });
+  assert.equal(byId("wayfarers-toolkit").title, "Wanderer's Toolkit");
+  globalThis.game = undefined;
+  assert.equal(byId("wayfarers-toolkit").title, "Wanderer's Toolkit");
+});
