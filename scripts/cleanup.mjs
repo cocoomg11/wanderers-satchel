@@ -9,6 +9,7 @@
 import { ID, TITLE } from "./const.mjs";
 import { createCache } from "./version-model.mjs";
 import * as Prefs from "./prefs.mjs";
+import * as Store from "./store.mjs";
 import { CHECKED_KEY, hasChecked, clearChecked } from "./lifecycle.mjs";
 import { CONFIRM_WORD, confirmed, hasFlags } from "../vendor/wanderers-core/index.mjs";
 
@@ -28,7 +29,8 @@ export function plan() {
   /** @type {{ messages: any[], store: any[], cache: string[], settings: any[] }} */
   const p = { messages: [], store: [], cache: [], settings: [] };
   for (const m of game.messages ?? []) if (ours(m)) p.messages.push(m);
-  for (const j of game.journal ?? []) if (j?.getFlag?.(ID, "storeEntry") === true) p.store.push(j);
+  // Every copy of the store entry (found by its marker flag, as Store finds it; its flags include core's `dataFolderFiled`).
+  for (const j of game.journal ?? []) if (j?.getFlag?.(ID, Store.ENTRY_FLAG) === true) p.store.push(j);
   p.cache = [...cache().keys(), ...(Prefs.hasFilter() ? [Prefs.FILTER_KEY] : []), ...(hasChecked() ? [CHECKED_KEY] : [])];
   for (const [, c] of game.settings.settings) if (c.namespace === ID) {
     let cur; try { cur = game.settings.get(ID, c.key); } catch { continue; }
@@ -43,7 +45,8 @@ export async function remove(pick = {}) {
   if (!game.user?.isGM) { ui.notifications.warn("GM only."); return null; }
   const p = plan(); const done = {};
   if (pick.messages) { try { await ChatMessage.deleteDocuments(p.messages.map(m => m.id)); done.messages = p.messages.length; } catch (e) { console.warn(`${ID} | remove messages`, e); done.messages = 0; } }
-  if (pick.store) { try { await JournalEntry.deleteDocuments(p.store.map(j => j.id)); done.store = p.store.length; } catch (e) { console.warn(`${ID} | remove store`, e); done.store = 0; } }
+  // core's remove(): deletes every copy and the "Module data" folder when no other module's entry is left in it.
+  if (pick.store) { try { done.store = await Store.remove(); } catch (e) { console.warn(`${ID} | remove store`, e); done.store = 0; } }
   if (pick.cache) { Prefs.clearFilter(); clearChecked(); done.cache = cache().clear() || p.cache.length; }
   if (pick.settings) {
     let n = 0;

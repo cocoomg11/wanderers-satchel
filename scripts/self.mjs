@@ -17,10 +17,8 @@ let results = () => new Map();
 export function bindUpdates(check, res) { recheck = check; results = res; }
 
 function storeStatus() {
-  const j = Store.entry(); if (!j) return { exists: false, playersCanSee: [], backups: 0 };
-  /** @type {string[]} */ let see = [];
-  try { see = game.users.filter((/** @type {any} */ u) => !u.isGM && j.testUserPermission(u, "LIMITED")).map((/** @type {any} */ u) => u.name); } catch { }
-  return { exists: true, playersCanSee: see, backups: Store.read().snapshots.length };
+  const st = Store.status(); if (!st.exists) return { exists: false, playersCanSee: [], backups: 0 };
+  return { exists: true, playersCanSee: st.playersCanSee, backups: Store.read().snapshots.length };
 }
 
 export const ENTRY = {

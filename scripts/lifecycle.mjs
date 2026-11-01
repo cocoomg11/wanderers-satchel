@@ -180,6 +180,8 @@ export async function dismiss(id) {
  */
 export async function onReady(check) {
   if (!game.user?.isGM) return;
+  // An entry made before 0.6.0 sits at the Journal's root: the active GM files it in "Module data" once (core; never throws).
+  if (Store.isWriter()) await Store.file();
   try { await writePending(); } catch (e) { console.warn(`${ID} | backup`, e); }
   try { await scanNews(); } catch (e) { console.warn(`${ID} | what's new`, e); }
   try {

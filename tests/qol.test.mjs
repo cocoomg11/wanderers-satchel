@@ -230,7 +230,8 @@ test("api.entries() is GM only; Remove Satchel data covers the new storage", () 
   const cleanup = readFileSync(new URL("../scripts/cleanup.mjs", import.meta.url), "utf8");
   assert.match(cleanup, /\["store", /);
   assert.match(cleanup, /clearChecked\(\)/);
-  assert.match(cleanup, /storeEntry/);
+  assert.match(cleanup, /Store\.ENTRY_FLAG/);
+  assert.match(cleanup, /await Store\.remove\(\)/);
 });
 
 test("overview: the Satchel's own update shows as a banner; Check now", () => {
