@@ -16,6 +16,7 @@
     "scripts/main.mjs"
   ],
   "styles": [
+    "vendor/wanderers-core/styles/wanderers-ui.css",
     "styles/satchel.css"
   ],
   "url": "https://github.com/cocoomg11/wanderers-satchel",
