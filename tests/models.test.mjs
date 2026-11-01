@@ -348,3 +348,26 @@ test("registration: validators and healthTimeoutMs", () => {
   assert.ok(R.normalizeRegistration({ id: "m", healthTimeoutMs: -1 }).warnings.some(w => /healthTimeoutMs/.test(w)));
   assert.ok(R.normalizeRegistration({ id: "m", validators: [] }).warnings.some(w => /validators should/.test(w)));
 });
+
+test("moduleBudget and runOne get the limit: the module's own limit sits just under the Satchel's", async () => {
+  assert.equal(H.moduleBudget(90000), 88000);
+  assert.equal(H.moduleBudget(5000), 4500);
+  assert.equal(H.moduleBudget(300000), 298000);
+  assert.equal(H.moduleBudget(500), 1000);
+  assert.equal(H.moduleBudget(undefined), 88000);
+  const seen = [];
+  const job = H.runChecks([{ id: "a" }, { id: "b" }], (e, ctx) => { seen.push([e.id, ctx.limitMs]); return { state: "ran", report: [] }; }, { timeoutFor: e => e.id === "a" ? 90000 : 30000 });
+  await job.settled;
+  assert.deepEqual(seen, [["a", 90000], ["b", 30000]]);
+});
+
+test("runChecks: a module still running at slowMs shows Still checking… in the grouped report, then its answer", async () => {
+  let release = () => { };
+  const job = H.runChecks([{ id: "tk", title: "Toolkit" }], () => new Promise(r => { release = () => r({ state: "ran", report: [{ title: "A", lines: [{ level: "ok", text: "fine" }] }] }); }), { timeoutFor: () => 1000, slowMs: 20 });
+  await new Promise(r => setTimeout(r, 40));
+  const g = H.groupHealth(job.results);
+  assert.equal(g.groups[0].state, "slow");
+  assert.match(g.groups[0].sections[0].lines[0].text, /^Still checking…/);
+  release(); await job.settled;
+  assert.equal(H.groupHealth(job.results).groups[0].sections[0].lines[0].text, "fine");
+});

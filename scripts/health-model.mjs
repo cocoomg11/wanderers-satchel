@@ -24,6 +24,17 @@ export const MAX_MS = 300000;
 export const MIN_MS = 5000;
 
 /**
+ * The limit handed to a module's own check (`health({ timeoutMs })`): the Satchel's limit for it less a small margin, so the
+ * module's own "took too long" line (which names the slow part) arrives before the Satchel gives up on the whole module.
+ * @param {number} limitMs
+ * @returns {number}
+ */
+export function moduleBudget(limitMs) {
+  const v = typeof limitMs === "number" && Number.isFinite(limitMs) ? limitMs : FIRST_RUN_MS;
+  return Math.max(1000, Math.round(v - Math.min(2000, v * 0.1)));
+}
+
+/**
  * The time limit for one module's check.
  * @param {{ first?: boolean, lastMs?: number | null, own?: number | null }} [o] first: no check of this module has answered since
  *   the page loaded; lastMs: how long its last answer took; own: the module's own limit (registration `healthTimeoutMs`).
@@ -72,14 +83,14 @@ const count = sections => {
 const secs = (/** @type {number} */ ms) => `${Math.round(ms / 1000)} s`;
 
 /**
- * Runs every module's check at once, each with its own limits. `runOne(entry)` returns a result
+ * Runs every module's check at once, each with its own limits. `runOne(entry, { limitMs })` returns a result
  * ({ state: "ran" | "failed" | "none" | "inactive", report?, error?, note? }); a throw becomes "failed". Returns
  * { results, done, settled }: `results` is a live list (one per entry, in order) whose items change as checks answer; `done`
  * resolves when every check has answered or passed its limit; `settled` when every check has answered (late ones included).
  * `onChange(i, result)` is called on every change. Results carry `ms` (how long the answer took) and `late` (answered after
  * its limit).
  * @param {{ id: string, title?: string }[]} list
- * @param {(entry: any) => any} runOne
+ * @param {(entry: any, ctx: { limitMs: number }) => any} runOne
  * @param {{ timeoutFor?: (entry: any) => number, slowMs?: number, onChange?: (i: number, r: any) => void, now?: () => number }} [opts]
  */
 export function runChecks(list, runOne, { timeoutFor = () => FIRST_RUN_MS, slowMs = SLOW_MS, onChange = () => { }, now = () => Date.now() } = {}) {
@@ -100,7 +111,7 @@ export function runChecks(list, runOne, { timeoutFor = () => FIRST_RUN_MS, slowM
       if (results[i].state === "pending" || results[i].state === "slow") { results[i] = { ...results[i], state: "timeout", limitMs: limit, ms: now() - start }; notify(i); }
       once();
     }, limit);
-    return Promise.resolve().then(() => runOne(e)).catch(err => ({ state: "failed", error: String(err?.message ?? err) })).then(r => {
+    return Promise.resolve().then(() => runOne(e, { limitMs: limit })).catch(err => ({ state: "failed", error: String(err?.message ?? err) })).then(r => {
       clearTimeout(slow); clearTimeout(hard);
       const late = results[i].state === "timeout";
       results[i] = { id: e.id, title: e.title || e.id, ...(r && typeof r === "object" ? r : { state: "failed", error: "the check gave no result" }), ms: now() - start, ...(late ? { late: true } : {}) };

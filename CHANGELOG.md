@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1
+
+### Fixed
+
+- **"Still checking…" never showed for Wayfarer's Toolkit** and its first check ended as a 20 second timeout warning: the Satchel allowed 90 seconds, but the toolkit used its own 20 second limit per part. The Satchel now passes its time limit to each module's check (`health({ timeoutMs })`, a couple of seconds under its own limit), and the toolkit adapter hands it to `api.healthReport({ timeoutMs })` (toolkit 1.27.1 and later use it; older ones ignore it). Red Book's adapter does the same if Red Book offers `healthReport`. The old adapter fallbacks are unchanged.
+- Checked live on 0.2.0: with a slow check the window does show *Still checking…* after 8 seconds and then the answer; only the toolkit's shorter limit was in the way.
+
+### Untested in Foundry
+
+- The combined health check right after a world load with toolkit 1.27.1 (expected: no Boss loot timeout, the toolkit answers in a few seconds).
+- A registered module whose `health()` reads `timeoutMs`.
+
 ## 0.2.0
 
 Built on the shared wanderers-core 0.2.0 library, a health check that no longer gives up on a slow module, better module cards, and safer imports.

@@ -33,6 +33,10 @@ test("toolkit adapter: healthReport preferred, old health() fallback, no removed
   assert.equal(h[0].title, "Features"); assert.match(h.at(-1).lines[0].text, /whispered/);
   api.healthReport = () => [{ title: "Quiet", lines: [] }];
   assert.equal((await t.health())[0].title, "Quiet");
+  // the Satchel's budget goes through to healthReport so the toolkit's per-section limit agrees with it
+  let seen = "none"; api.healthReport = o => { seen = o; return []; };
+  await t.health({ timeoutMs: 88000 }); assert.deepEqual(seen, { timeoutMs: 88000 });
+  await t.health(); assert.deepEqual(seen, {});
   // 1.27: no settingsIO → read gives null and the Satchel checks the values itself
   assert.equal(t.importSettings.read({}), null);
   await assert.rejects(async () => t.importSettings.apply([1]), /isn't available/);

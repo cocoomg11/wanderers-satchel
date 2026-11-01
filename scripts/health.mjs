@@ -17,11 +17,13 @@ export const LIMITS = { slowMs: H.SLOW_MS, firstRunMs: H.FIRST_RUN_MS, baseMs: H
 const timeoutFor = (/** @type {any} */ e) => H.healthTimeout({ first: !lastMs.has(e.id), lastMs: lastMs.get(e.id) ?? null, own: e.healthTimeoutMs ?? null });
 
 /**
- * Runs one module's check without a time limit (the runner adds it): { state, report?, error?, note? }. Adds dependency lines from
- * the module's manifest. Only on a GM client: the known modules' health APIs are GM-only.
+ * Runs one module's check (the runner adds the time limit): { state, report?, error?, note? }. Adds dependency lines from the
+ * module's manifest. Only on a GM client: the known modules' health APIs are GM-only. The module's check gets
+ * `{ timeoutMs }` (H.moduleBudget of the Satchel's limit) so its own per-part limits agree with the Satchel's.
  * @param {any} e
+ * @param {{ limitMs?: number }} [ctx]
  */
-export async function checkOne(e) {
+export async function checkOne(e, { limitMs = H.FIRST_RUN_MS } = {}) {
   const info = Reg.moduleInfo(e.id);
   if (!info) return { state: "failed", error: "not installed" };
   if (!info.active) return { state: "inactive" };
@@ -32,7 +34,7 @@ export async function checkOne(e) {
   if (typeof e.health !== "function") return depsOnly();
   const t0 = Date.now();
   try {
-    const r = await e.health();
+    const r = await e.health({ timeoutMs: H.moduleBudget(limitMs) });
     lastMs.set(e.id, Date.now() - t0);
     log(`health ${e.id}: ${Date.now() - t0} ms`);
     if (r === null) return depsOnly();

@@ -26,9 +26,10 @@ const toolkit = {
   id: "wayfarers-toolkit",
   title: "Wayfarer's Toolkit",
   openPanel: (/** @type {string} */ tab) => { const api = apiOf("wayfarers-toolkit"); return typeof api?.panel === "function" ? api.panel(tab) : false; },
-  health: async () => {
+  health: async (/** @type {{ timeoutMs?: number }} */ opts = {}) => {
     const api = apiOf("wayfarers-toolkit"); if (!api) throw new Error("the toolkit's API isn't available");
-    if (typeof api.healthReport === "function") return api.healthReport();
+    // 1.27.1+ uses timeoutMs per section (1.27.0 had a fixed 20 s there in practice); older versions ignore it.
+    if (typeof api.healthReport === "function") return api.healthReport(typeof opts?.timeoutMs === "number" ? { timeoutMs: opts.timeoutMs } : {});
     if (typeof api.health !== "function") throw new Error("this toolkit version has no health check API");
     const sections = await api.health();
     return [...(Array.isArray(sections) ? sections : []), { title: "Note", lines: [{ level: "info", text: "This toolkit version also whispered its own health card to the GMs (1.27 and later don't)." }] }];
@@ -111,9 +112,9 @@ const redBook = {
   id: "red-book",
   title: "Red Book",
   openPanel: (/** @type {string} */ tab) => { const api = apiOf("red-book"); return typeof api?.panel === "function" ? api.panel(tab) : false; },
-  health: async () => {
+  health: async (/** @type {{ timeoutMs?: number }} */ opts = {}) => {
     const api = apiOf("red-book"); if (!api) throw new Error("Red Book's API isn't available yet (it is set when Red Book is ready)");
-    if (typeof api.healthReport === "function") return api.healthReport();
+    if (typeof api.healthReport === "function") return api.healthReport(typeof opts?.timeoutMs === "number" ? { timeoutMs: opts.timeoutMs } : {});
     if (typeof api.health === "function") {
       const r = await api.health();
       // 0.2/0.3 return a plain list of lines; a list of sections (core's report) is passed on as it is.
