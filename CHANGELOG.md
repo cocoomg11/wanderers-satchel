@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.4.0
+
+A filter for the health check, three fixes from a live retest, and the shared look of wanderers-core.
+
+### Added
+
+- **Health check filter.** On the Health check page the count chips (OK, Warnings, Problems, Still checking, Not active) are toggle buttons: press one or several (Warnings + Problems), **All** resets. Only matching lines show; modules with no matching line are hidden and the page says how many ("2 modules hidden by the filter"). The counts stay the totals. Each module page's health panel has the same chips. The choice is remembered per browser (local storage; everything still works when the browser refuses storage). Remove Satchel data forgets it (*Kept in this browser*).
+
+### Changed
+
+- **Shared look from wanderers-core 0.3.0.** The hub and the health window use core's stylesheet and classes (sidebar, page head, tiles, panels, banners, alerts, tables, buttons, badges, dots, status lines; Foundry's own colours in both themes). The Satchel's own stylesheet now holds only what the Satchel alone has. Remove Satchel data's **Remove** button is styled as a danger button.
+- The whispered health card is wrapped in the same look, so its badges and lines match the hub.
+
+### Fixed
+
+- **Short or narrow hub hid the module table.** At 640×720 or 1000×450 the table box shrank to a few pixels instead of the page scrolling. The page's blocks now keep their height. (Same fix in wanderers-core 0.3.1; the Satchel carries its own rule until it moves to that.)
+- **Whisper to GMs card heading** wrapped the module name a few letters per line in the chat sidebar (the chat's large heading size plus the counts squeezing it). The heading is smaller, the counts never wrap and sit on their own line in chat, and the name wraps as words.
+- **Settings import preview showed translation keys** for some modules' settings (for example `LOOTLEDGER.Settings.Ratio.Name`). Other modules' setting names and hints are now localized wherever the Satchel shows them; the hint shows when you point at a setting's name.
+
+### Untested in Foundry
+
+- The hub and the health window in the dark and the light theme, and with a window's own theme override: tiles, badges, dots, banners, alerts, tables, buttons and focus outlines look at least as good as 0.3.0; no 404 for `vendor/wanderers-core/styles/wanderers-ui.css` in the console.
+- The hub at 640×720 and 1000×450: the module table, panels and import blocks keep their height and the page scrolls; at 720 px or narrower the sidebar is a strip and the tiles and tool cards stack.
+- Filter chips: pressing, multi-select, All, the hidden-modules line, keyboard (Tab to a chip, Space / Enter toggles, focus stays on it while results come in); the same chips on a module page; the choice survives a reload; a private window works without remembering.
+- Remove Satchel data with *Kept in this browser* ticked clears the remembered filter and the count includes it.
+- Whisper to GMs at the chat sidebar's normal width (about 300 px): heading on one or two lines as words, counts on their own line, badges small; in both themes.
+- Import preview with Loot Ledger installed: its setting names show localized.
+- With another module on core 0.3.1 (revision 2) loaded too: the Satchel's windows keep their look.
+
 ## 0.3.0
 
 A new hub layout: a sidebar with pages instead of one long list of cards. Includes the 0.2.1 fixes below (0.2.1 was not released on its own).

@@ -58,7 +58,9 @@ Each module has its own time limit, so one slow module never holds up or fails t
 - A module past its limit shows *No answer yet* as a warning, not a failure. If it answers later, its result replaces that line. **Check again** starts over.
 - A check that throws is shown as failed; the rest still run.
 
-**Whisper to GMs** posts the report as it stands to chat. The check itself changes nothing.
+**Filter:** the count chips above the report (OK, Warnings, Problems, and Still checking / Not active when there are any) are toggle buttons. Press one or several (for example Warnings and Problems) to see only those lines; **All** shows everything again. Modules with no matching line are hidden, and the page says how many. The counts on the chips are always the totals. Each module page's health panel has the same chips. The choice is remembered in this browser (local storage) and shared by the Health check page and the module pages; in a private window it lasts until the hub closes.
+
+**Whisper to GMs** posts the whole report as it stands to chat (not filtered). The check itself changes nothing.
 
 <!-- screenshot: the health check page -->
 
@@ -162,12 +164,13 @@ Hooks.once("ready", () => {
 - Its own world settings (the feature switches above and Debug logging), under the `wanderers-satchel` namespace.
 - `flags.wanderers-satchel.health` on the health report chat messages it whispers to GMs.
 - Update-check answers in the browser's session storage (keys starting `wanderers-satchel.update.`); gone when the browser tab closes.
+- The health check filter in the browser's local storage (`wanderers-satchel.healthFilter`; only while a filter other than All is chosen).
 - What you choose: **Import** writes other modules' settings, and **Debug logging for all** changes each module's own debug setting. Those belong to those modules and are not undone by Remove Satchel data.
 - A key binding you set is kept by Foundry with its own key bindings.
 
 ## Built with wanderers-core
 
-The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.2.0) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels, the settings file format and its checks, version compare and the REMOVE confirmation come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
+The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.3.0) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels, the settings file format and its checks, version compare, the REMOVE confirmation and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
 
 ## Install
 
