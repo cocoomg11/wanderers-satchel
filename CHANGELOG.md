@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.0 (2026-11-01)
+
+wanderers-core 0.5.0 (from 0.3.1): the shared GM-only store, a hidden *Module data* journal folder, remembered window positions and core's open key binding. Nothing to do after updating.
+
+### Added
+
+- **Module data folder.** The Satchel's GM-only journal moves into a shared Journal folder, *Module data*, together with your other modules' GM-only journals, and the folder is hidden from the Journal sidebar. An existing journal is moved once, by the active GM, on the first load with 0.6.0; if you move it somewhere else afterwards it stays there. **Maintenance › Show module data folder** shows the folder in this browser (client setting `showModuleData`, off). Each module on wanderers-core 0.5.0 has a switch of its own and the folder shows when any one is on, so the page lists the other modules' switches too (read only) and says which one keeps the folder visible. This tidies the sidebar only: it hides nothing from players.
+- **Remembered windows.** The hub and the health check window open where you last left them, at the same size (per browser, wanderers-core's `windowPlacement` client setting). **Maintenance › Reset window positions** forgets them.
+
+### Changed
+
+- **wanderers-core 0.5.0** (shared look revision 3: the windows take it through core's classes; nothing in the Satchel names a revision). CI uses core's `module-checks.yml@v0.5.0`; the release zip leaves out core's test fakes (`vendor/wanderers-core/testing/`).
+- **GM-only journal on core's store.** Same journal, found by the same flag (`storeEntry`), same data; core now does the reading, writing and filing. Remove Satchel data deletes it with core's `remove()`, which also deletes the *Module data* folder when nothing else is in it.
+- **Key binding on core's helper.** Same action id (`open`), so a key you set is kept; still no key by default, GM only.
+- **Health fix reader is core's `readFix`** (the same rules as 0.5.0: a function, an action id, or `{ label, run | action, confirm }`). Fix action ids are checked with core's `FIX_ACTION_RE` (same pattern).
+- **Settings transfer and backups never carry `showModuleData` or `windowPlacement`** for any module (the toolkit, Ringmaker, Loot Ledger, Red Book, registered modules and the Satchel): they are per-browser records of wanderers-core 0.5.0.
+- **Remove Satchel data**: *Reset settings* also resets this browser's Module data switch and window positions.
+
+### Untested in Foundry
+
+- After updating from 0.5.0: the What's new card for the Satchel shows on the Overview with these 0.6.0 notes (from `CHANGELOG.md`), and Dismiss hides it.
+- The existing "Wanderer's Satchel (GM only)" journal is found as before (backups and versions seen still there), moved into a *Module data* folder once by the active GM (not by a second GM, not by a player), and gets `flags.wanderers-satchel.dataFolderFiled`; move it back to the root, reload: it stays there. A fresh world: the first write creates the journal inside *Module data*.
+- The *Module data* folder is hidden from the Journal sidebar and its search; **Show module data folder** shows it at once (the sidebar redraws) and only in this browser; with another module's own switch on, the folder shows and the Maintenance page names that module; with the Satchel alone installed the page says no other module has a switch.
+- The hub and the health window reopen where they were left, at the same size (also after a reload), are pulled back inside a smaller browser window, and minimized state is kept; Reset window positions puts them back at the default next time they open.
+- Configure Controls lists *Open Wanderer's Satchel* with no key; a key set under 0.5.0 still works; a player can't use it.
+- Health: the Satchel's *Make GM only* Fix (give a player Observer on the journal, press Fix: it asks, then the line turns ok); other modules' Fix buttons as in 0.5.0.
+- Settings transfer › Export and a backup leave out every module's `showModuleData` and `windowPlacement`; an older file that has them shows them as skipped on Import.
+- Remove Satchel data: the journal category deletes the journal and the *Module data* folder when it is empty, and keeps the folder when another module's journal is in it; *Reset settings* resets `showModuleData` and `windowPlacement`.
+- Both themes (shared look revision 3): the hub (every page, the Maintenance panels), the health window and the chat card.
+
 ## 0.5.0 (2026-11-01)
 
 Help around module updates: what's out, what changed, a settings backup before and after, and Fix buttons in the health check. Each part has its own switch.

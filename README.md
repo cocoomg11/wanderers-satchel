@@ -44,7 +44,7 @@ What changed in each version: [CHANGELOG](CHANGELOG.md).
 
 ### The hub window
 
-GM only. A window (about 1000 px wide, resizable) with a sidebar on the left and the page on the right. The Settings menu, the key binding, the token-controls button and the Settings sidebar button all open it on **Overview**. In a narrow window the sidebar becomes a strip of links above the page.
+GM only. A window (about 1000 px wide, resizable) with a sidebar on the left and the page on the right. The Settings menu, the key binding (*Open Wanderer's Satchel* in Configure Controls; no key by default), the token-controls button and the Settings sidebar button all open it on **Overview**. It opens where you last left it, at the same size (per browser; the health check window too); *Maintenance › Reset window positions* forgets that. In a narrow window the sidebar becomes a strip of links above the page.
 
 **Sidebar:** *Overview*; *Modules*, one link per module the Satchel knows (the [built-in ones](#built-in-modules) when installed, and any module that registered itself) with a status dot (the worst result of its last health check since the page loaded; hollow when not active or not checked yet) and a count of its warnings and problems; *Tools*: Health check, Settings transfer, Maintenance; the Satchel's version at the bottom. Inactive modules are dimmed. The arrow keys, Home and End move between links; Enter opens one.
 
@@ -106,6 +106,12 @@ The toolkit's flight network setting holds only the version players see; the ful
 
 When at least one module has a known Debug logging setting, the Overview shows one switch that turns all of them on or off at once (it changes each module's own setting; *some on* when they differ). Each module's page has its own switch.
 
+### Maintenance
+
+**Module data folder.** Your modules (on wanderers-core 0.5.0) keep their GM-only journals together in one Journal folder, *Module data*, which is hidden from the Journal sidebar. **Show module data folder** shows it in this browser. Each module has a switch of its own, and the folder shows when any one of them is on, so the page also lists the other modules' switches as set in this browser (read only: change them in that module's settings). This only tidies the sidebar; it hides nothing from players.
+
+**Window positions.** **Reset window positions** forgets where the hub and the health check window were left in this browser; they open at the default place and size next time.
+
 ### Remove Satchel data
 
 The *Maintenance* page (also **Remove Satchel data…** on the Overview) counts what the Satchel stored (a dry run), lets you tick what goes and asks you to type REMOVE; a missing confirm word or nothing ticked is said on the page. The GM-only journal (with the settings backups) is a category of its own, not ticked by default. See [Data Wanderer's Satchel writes](#data-wanderers-satchel-writes).
@@ -145,6 +151,8 @@ World settings (Game Settings › Wanderer's Satchel). The feature switches each
 
 Also **Debug logging** (`debugLog`, world, off): writes health check timings, update checks and imports to the browser console. It isn't in Configure Settings; **Debug logging for all** in the hub switches it with the others.
 
+Per browser (client settings, not in Configure Settings): **Show module data folder** (`showModuleData`, off; on the Maintenance page) and the remembered window positions (`windowPlacement`, wanderers-core's). Neither is ever exported or imported, for the Satchel or for any other module: every module's `showModuleData` and `windowPlacement` are left out of Settings transfer and the backups.
+
 ## Public API and hooks
 
 `const satchel = game.modules.get("wanderers-satchel").api;` (set in our `init` hook). Entries marked GM do nothing on a player's client (a "GM only" notice and `undefined`).
@@ -179,7 +187,7 @@ Registration fields (all optional except `id`):
 - `importSettings: { read(data), apply(rows) }`: `read` returns `{ ok, error, rows: [{ key, label, from, to, changed, note }], unknown, skipped, invalid }` (or `null` to let the Satchel check the values itself); `apply(rows)` writes the ticked rows and returns `{ written, reload }`.
 - `debugSetting`: your Boolean debug setting's key, or `{ namespace, key }`.
 - `docs: { url, readme, changelog, bugs }`: links that override your `module.json`.
-- `skipSettings`: keys of record-type settings never exported or imported.
+- `skipSettings`: keys of record-type settings never exported or imported. `showModuleData` and `windowPlacement` (wanderers-core 0.5.0 client records) are always left out, listed or not.
 - `fixes: { actionId: (ctx) => result }`: actions your health lines can point to (see below). Ids are letters, digits and `_ . : -`, at most 64; ids starting `satchel:` are the Satchel's own.
 - `validators: { key: (value, def) => true | "reason" | { ok: true, value } }`: extra import checks for your Object and Array settings, run after the Satchel's plain-data check (the same contract as wanderers-core's `readImport` validators). `openPanel`, `health`, `importSettings` and `exportSettings` are only called on a GM's client.
 
@@ -218,9 +226,10 @@ satchel.register({
 
 ## Data Wanderer's Satchel writes
 
-- Its own world settings (the feature switches above and Debug logging), under the `wanderers-satchel` namespace.
+- Its own world settings (the feature switches above and Debug logging) and two client settings (`showModuleData`, `windowPlacement`), under the `wanderers-satchel` namespace.
 - `flags.wanderers-satchel.health` on the health report chat messages it whispers to GMs.
-- One journal entry, *Wanderer's Satchel (GM only)* (ownership None; `flags.wanderers-satchel.storeEntry` and `flags.wanderers-satchel.store`): the settings backups (at most 5, each at most 1 MB), the module versions last shown in What's new and the bookkeeping for automatic backups. It is made by the first automatic write on the active GM's client (or the first backup or dismissal). Whether Foundry withholds a None-ownership journal from players' clients is Foundry's behaviour; the Satchel's health check warns when a player can see it. Deleting it loses the backups.
+- One journal entry, *Wanderer's Satchel (GM only)* (ownership None; `flags.wanderers-satchel.storeEntry`, `flags.wanderers-satchel.store` and, once filed, `flags.wanderers-satchel.dataFolderFiled`), in the shared *Module data* folder: the settings backups (at most 5, each at most 1 MB), the module versions last shown in What's new and the bookkeeping for automatic backups. It is made by the first automatic write on the active GM's client (or the first backup or dismissal); an entry made before 0.6.0 is moved into *Module data* once by the active GM (move it elsewhere afterwards and it stays there). **Not secrecy:** ownership None keeps it out of players' sidebars and windows, but Foundry still sends the journal to players' clients (checked on Foundry 14), so a player with the browser console can read it. Don't keep anything secret in module settings. The Satchel's health check warns when a player can see it in the sidebar. Deleting it loses the backups.
+- The *Module data* journal folder (wanderers-core's, shared with your other modules), when the first store journal is filed. Remove Satchel data deletes it only when nothing else is in it.
 - Update-check answers in the browser's session storage (keys starting `wanderers-satchel.update.`); gone when the browser tab closes.
 - The health check filter in the browser's local storage (`wanderers-satchel.healthFilter`; only while a filter other than All is chosen), and when this browser last ran the daily update check (`wanderers-satchel.updateCheckedAt`).
 - What you choose: **Import** writes other modules' settings, and **Debug logging for all** changes each module's own debug setting. Those belong to those modules and are not undone by Remove Satchel data.
@@ -228,7 +237,7 @@ satchel.register({
 
 ## Built with wanderers-core
 
-The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.3.1) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels, the settings file format and its checks, version compare, the REMOVE confirmation and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
+The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.5.0) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels and the health fix reader, the settings file format and its checks, version compare, the REMOVE confirmation, the GM-only store journal and the *Module data* folder, remembered window placement, the open key binding and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
 
 ## Install
 
