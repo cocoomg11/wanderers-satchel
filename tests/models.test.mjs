@@ -371,3 +371,28 @@ test("runChecks: a module still running at slowMs shows Still checking… in the
   release(); await job.settled;
   assert.equal(H.groupHealth(job.results).groups[0].sections[0].lines[0].text, "fine");
 });
+
+// ---------------------------------------------------------------- the remembered health filter (localStorage, every access wrapped)
+import * as Prefs from "../scripts/prefs.mjs";
+test("prefs: filter saved per browser; All removes it; storage that throws or is missing is harmless", () => {
+  const desc = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const set = (/** @type {any} */ v) => Object.defineProperty(globalThis, "localStorage", { value: v, configurable: true, writable: true });
+  try {
+    const mem = new Map();
+    set({ getItem: (/** @type {string} */ k) => mem.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => mem.set(k, v), removeItem: (/** @type {string} */ k) => mem.delete(k) });
+    Prefs.saveFilter(new Set(["bad", "warn"]));
+    assert.equal(mem.get(Prefs.FILTER_KEY), '["warn","bad"]');
+    assert.deepEqual([...Prefs.loadFilter()], ["warn", "bad"]);
+    assert.equal(Prefs.hasFilter(), true);
+    Prefs.saveFilter(new Set()); assert.equal(mem.has(Prefs.FILTER_KEY), false);
+    mem.set(Prefs.FILTER_KEY, "not json"); assert.equal(Prefs.loadFilter().size, 0);
+    assert.equal(Prefs.clearFilter(), 1); assert.equal(Prefs.clearFilter(), 0);
+    const boom = () => { throw new Error("SecurityError"); };
+    set({ getItem: boom, setItem: boom, removeItem: boom });
+    assert.equal(Prefs.loadFilter().size, 0); assert.doesNotThrow(() => Prefs.saveFilter(new Set(["ok"]))); assert.equal(Prefs.hasFilter(), false); assert.equal(Prefs.clearFilter(), 0);
+    Object.defineProperty(globalThis, "localStorage", { get: boom, configurable: true });
+    assert.equal(Prefs.loadFilter().size, 0); assert.doesNotThrow(() => Prefs.saveFilter(new Set(["ok"])));
+  } finally {
+    if (desc) Object.defineProperty(globalThis, "localStorage", desc); else delete (/** @type {any} */ (globalThis)).localStorage;
+  }
+});
