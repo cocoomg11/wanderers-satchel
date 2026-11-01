@@ -67,6 +67,8 @@ Each module has its own time limit, so one slow module never holds up or fails t
 
 What an import will never do: read a file over 5 MB; write to a module the Satchel doesn't show in this world (or one that isn't active); write a record setting; write a list or object setting that isn't plain data (no oversized or deeply nested values, no special keys like `__proto__`) or that fails that module's own shape check (for example the toolkit's flight network). Every value is checked again at the moment it is written.
 
+The toolkit's flight network setting holds only the version players see; the full network is kept elsewhere by the toolkit, so importing a settings file does not bring back points that are still locked.
+
 ### Debug logging for all
 
 When at least one module has a known Debug logging setting, the hub shows one switch that turns all of them on or off at once (it changes each module's own setting; *some on* when they differ).

@@ -26,10 +26,10 @@ Foundry VTT module (v13/v14, any game system): a GM hub for the user's other mod
 - Pure files have no Foundry calls at import time and are tested in Node.
 
 ## What the adapters assume (check when those modules change)
-- Toolkit: `api.panel(tab)`, `api.healthReport()` (1.27+, core report, no card; falls back to `api.health()`), `api.cleanup.open()`, setting `debugLog`. `api.settingsIO` only on old versions (1.27 drops it). No Session Start / Who's online use.
+- Toolkit: `api.panel(tab)`, `api.healthReport()` (1.27+, core report, no card; falls back to `api.health()`), `api.cleanup.open()`, setting `debugLog`. `api.settingsIO` only on old versions (1.27 drops it). No Session Start / Who's online use (1.27 removed Who's online; `onlineHudPos` stays registered hidden only for Red Book's move). `api.settingsRecords()` (1.27+) lists extra record settings; the adapter's `skipSettings` adds them on a GM client (`skipFor`), static `SKIP` as fallback. The `flightNetwork` setting now holds only the players' view `{version, points, routes}`; the full network is in the toolkit's GM-only store, so an import does not restore locked points.
 - Ringmaker 1.4.2: GM-only `api.status()`, `api.removePlan()`; menu "Ringmaker tools"; no `debugLog` yet (row says so).
 - Loot Ledger 0.3: no API calls; reads `world.loot-ledger-items` / `-converted-items` / `-tables`, journal flag `flags.loot-ledger.buildReport`, the required module's Item packs, settings `convertOnBuild` `reviewBoard` `qualityColours` `randomSuffixes`.
-- Red Book 0.3 (api set in its `ready`): `api.panel(tab)`, `api.health()` (array of lines), `api.cleanup.open()`, setting `debugLog`, records `openSession` `boardPins`. A Red Book `api.register` call replaces the adapter.
+- Red Book 0.3 (api set in its `ready`): `api.panel(tab)`, `api.health()` (array of lines), `api.cleanup.open()`, setting `debugLog`, records `openSession` `boardPins` `onlineHudPos` (client) `migrations`. A Red Book `api.register` call replaces the adapter.
 - Suggested in those modules (not done here): `debugLog` in Ringmaker / Loot Ledger; Red Book calling `register()` with `healthReport`.
 
 ## House practices

@@ -8,7 +8,7 @@
  * returns null on a player's client, so nothing here ever calls another module's API there (and the Satchel's windows and API
  * entries are GM-only too).
  */
-import { SKIP, VALIDATORS, ringmakerLines, lootLedgerSections, requiredIds } from "./adapters-model.mjs";
+import { SKIP, VALIDATORS, skipFor, ringmakerLines, lootLedgerSections, requiredIds } from "./adapters-model.mjs";
 
 /** @param {string} id */
 const apiOf = id => {
@@ -39,7 +39,8 @@ const toolkit = {
     apply: (/** @type {any[]} */ rows) => { const io = apiOf("wayfarers-toolkit")?.settingsIO; if (typeof io?.apply !== "function") throw new Error("the toolkit's own settings import isn't available any more; import the file again"); return io.apply(rows); }
   },
   debugSetting: { namespace: "wayfarers-toolkit", key: "debugLog" },
-  skipSettings: SKIP["wayfarers-toolkit"],
+  // Read when the registry is built: the static list plus what the toolkit (1.27+) lists itself (GM client only).
+  get skipSettings() { return skipFor("wayfarers-toolkit", apiOf("wayfarers-toolkit")); },
   validators: VALIDATORS["wayfarers-toolkit"],
   extraActions: [
     { label: "Remove toolkit data…", icon: "fa-solid fa-broom", available: () => typeof apiOf("wayfarers-toolkit")?.cleanup?.open === "function", run: () => apiOf("wayfarers-toolkit")?.cleanup?.open?.() }

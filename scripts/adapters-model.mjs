@@ -13,8 +13,22 @@ export const SKIP = {
   "wayfarers-toolkit": ["lootHistoryData", "lastSeenVersion", "setupReminded", "wizardDone", "flightCache", "goldSnapshots", "pinsNotesShown", "bossLayout", "bossFramePos", "onlineHudPos", "paneWindow"],
   ringmaker: [],
   "loot-ledger": [],
-  "red-book": ["openSession", "boardPins"]
+  "red-book": ["openSession", "boardPins", "onlineHudPos", "migrations"]
 };
+
+/**
+ * The skip list for a module, plus any extra record keys its api lists (the toolkit's `api.settingsRecords()`, 1.27 and later).
+ * The static list stays as the fallback; a missing or failing function changes nothing.
+ * @param {string} id @param {any} api the module's api (null on a player's client)
+ * @returns {string[]}
+ */
+export function skipFor(id, api) {
+  const out = new Set(SKIP[/** @type {keyof typeof SKIP} */ (id)] ?? []);
+  if (id === "wayfarers-toolkit" && typeof api?.settingsRecords === "function") {
+    try { for (const k of api.settingsRecords() ?? []) if (typeof k === "string" && k) out.add(k); } catch { /* keep the static list */ }
+  }
+  return [...out];
+}
 
 const isObj = (/** @type {unknown} */ v) => !!v && typeof v === "object" && !Array.isArray(v);
 

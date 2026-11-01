@@ -20,7 +20,7 @@ test("adapters: the four known modules, none provisional, debug settings named",
   assert.deepEqual(byId("ringmaker").debugSetting, { namespace: "ringmaker", key: "debugLog" });
   assert.equal(typeof byId("loot-ledger").health, "function");
   assert.ok(byId("wayfarers-toolkit").skipSettings.includes("lootHistoryData"));
-  assert.deepEqual(byId("red-book").skipSettings, ["openSession", "boardPins"]);
+  assert.deepEqual(byId("red-book").skipSettings, ["openSession", "boardPins", "onlineHudPos", "migrations"]);
 });
 
 test("toolkit adapter: healthReport preferred, old health() fallback, no removed features", async () => {
@@ -142,4 +142,19 @@ test("dependencyLines: missing, inactive, active, other system", () => {
   assert.deepEqual(A.dependencyLines({}, () => null, "x"), []);
   assert.deepEqual(A.dependencyLines({ relationships: { systems: [{ id: "x" }] } }, () => null, "x"), []);
   assert.deepEqual(A.requiredIds({ relationships: { requires: [{ id: "a" }, { id: "s", type: "system" }] } }), ["a"]);
+});
+
+test("skip lists: toolkit adds api.settingsRecords() on a GM client, keeps the static list otherwise", () => {
+  const api = { settingsRecords: () => ["lootHistoryData", "newRecord", 5, ""] };
+  globalThis.game = fakeGame({ "wayfarers-toolkit": { active: true, api } });
+  const gm = byId("wayfarers-toolkit").skipSettings;
+  assert.ok(gm.includes("newRecord") && gm.includes("onlineHudPos") && gm.includes("flightCache"));
+  assert.equal(gm.filter(k => k === "lootHistoryData").length, 1);
+  assert.ok(!gm.includes(5) && !gm.includes(""));
+  globalThis.game = fakeGame({ "wayfarers-toolkit": { active: true, api } }, { isGM: false });
+  assert.ok(!byId("wayfarers-toolkit").skipSettings.includes("newRecord"));
+  globalThis.game = fakeGame({ "wayfarers-toolkit": { active: true, api: {} } });
+  assert.deepEqual(byId("wayfarers-toolkit").skipSettings, A.SKIP["wayfarers-toolkit"]);
+  assert.deepEqual(A.skipFor("wayfarers-toolkit", { settingsRecords: () => { throw new Error("x"); } }), A.SKIP["wayfarers-toolkit"]);
+  assert.deepEqual(A.skipFor("ringmaker", { settingsRecords: () => ["x"] }), []);
 });
