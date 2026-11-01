@@ -1,0 +1,45 @@
+/* Wanderer's Satchel. Windows use .ws-window; no backdrop blur (it costs a lot of frame rate in Foundry v14). */
+.ws-window { backdrop-filter: none !important; }
+.ws-window .window-content { padding: 0; }
+.ws-window .ws-scroll { overflow-y: auto; height: 100%; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.ws-window .hint { opacity: 0.75; font-size: 0.85em; }
+.ws-window .ws-footer { display: flex; gap: 0.4rem; justify-content: flex-end; margin-top: 0.5rem; }
+.ws-window .ws-footer button { flex: 0 0 auto; }
+
+.ws-hub .ws-jobs { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border, #8885); }
+.ws-hub .ws-jobs button { flex: 0 0 auto; width: auto; }
+.ws-hub .ws-debug { display: flex; align-items: center; gap: 0.3rem; flex-basis: 100%; }
+.ws-card { border: 1px solid var(--color-border, #8885); border-radius: 6px; padding: 0.5rem 0.6rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.ws-card header { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.ws-card h3 { margin: 0; border: none; font-size: 1.1em; }
+.ws-card .ws-version { opacity: 0.8; font-family: var(--font-mono, monospace); }
+.ws-card p { margin: 0; }
+.ws-card .ws-buttons { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ws-card .ws-buttons button { flex: 0 0 auto; width: auto; }
+.ws-tag { font-size: 0.8em; padding: 0 0.4em; border-radius: 3px; border: 1px solid currentColor; opacity: 0.85; }
+
+.ws-ok { color: #3a8a3a; }
+.ws-warn { color: #b07a00; }
+.ws-bad { color: #c03030; }
+.ws-off { color: #888; }
+.ws-info { color: inherit; }
+.ws-card .ws-update.ws-info, .ws-card .ws-update:not([class*=" ws-"]) { opacity: 0.8; }
+
+.ws-health h3 { display: flex; justify-content: space-between; margin: 0.6em 0 0.2em; border-bottom: 1px solid currentColor; }
+.ws-health .ws-health-group h3 { color: inherit; }
+.ws-health .ws-counts { font-size: 0.8em; font-weight: normal; opacity: 0.8; }
+.ws-health h4 { margin: 0.4em 0 0.1em; }
+.ws-health .ws-lines { list-style: none; margin: 0; padding: 0; }
+.ws-health .ws-lines li { margin: 0.1em 0; color: inherit; }
+.ws-health .ws-icon { display: inline-block; width: 1.3em; font-weight: bold; }
+.ws-health .ws-lines li.ws-ok .ws-icon { color: #3a8a3a; }
+.ws-health .ws-lines li.ws-warn .ws-icon { color: #b07a00; }
+.ws-health .ws-lines li.ws-bad .ws-icon { color: #c03030; }
+.ws-health .ws-lines li.ws-off { opacity: 0.7; }
+
+.ws-grid { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.ws-grid th, .ws-grid td { padding: 0.15rem 0.3rem; vertical-align: top; text-align: left; }
+.ws-grid code { word-break: break-all; }
+.ws-dim { opacity: 0.6; }
+
+.ws-sidebar { gap: 0.35rem; margin-top: 0.5rem; }

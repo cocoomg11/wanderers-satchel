@@ -1,0 +1,153 @@
+/**
+ * Settings export / import for every module in the Satchel (feature "sharedSettings"), GM only. Export writes one JSON file;
+ * import reads it, shows what would change per module with a tick per setting, and writes only after the GM confirms.
+ *
+ * Per module: an entry with exportSettings() exports through it ("module"); otherwise the Satchel reads the module's registered
+ * settings in its namespace ("settings", minus the entry's skip list). On import, an entry with importSettings { read, apply }
+ * reads and writes through the module's own checks; otherwise the Satchel checks each value against the registered setting.
+ */
+import { ID, TITLE, esc, plural } from "./const.mjs";
+import * as M from "./settings-model.mjs";
+import * as Reg from "./registry.mjs";
+
+const get = (ns, k) => { try { return game.settings.get(ns, k); } catch { return undefined; } };
+
+/** A namespace's registered settings: Map key → { scope, type, choices, range, name, requiresReload, default }. */
+export function defs(ns) {
+  const out = new Map();
+  for (const [, c] of game.settings.settings) if (c.namespace === ns) out.set(c.key, { scope: c.scope, type: c.type, choices: c.choices, range: c.range, name: c.name, requiresReload: !!c.requiresReload, default: c.default });
+  return out;
+}
+
+/** The modules the bundle covers: every active entry, plus the Satchel itself. */
+function targets() {
+  const list = Reg.entries().filter(e => game.modules.get(e.id)?.active);
+  return [...list, { id: ID, title: TITLE, skipSettings: M.OWN_SKIP }];
+}
+
+/** Builds the bundle object (no download). */
+export async function build() {
+  const parts = [], problems = [];
+  for (const e of targets()) {
+    const version = game.modules.get(e.id)?.version ?? "";
+    try {
+      if (typeof e.exportSettings === "function") { parts.push({ id: e.id, title: e.title || e.id, version, via: "module", data: await e.exportSettings() }); continue; }
+      const d = defs(e.id); if (!d.size) continue;
+      const list = [...d].map(([key, x]) => ({ key, scope: x.scope, value: get(e.id, key) }));
+      parts.push({ id: e.id, title: e.title || e.id, version, via: "settings", data: M.buildModuleExport(e.id, list, { version, skip: e.skipSettings ?? [] }) });
+    } catch (err) { console.warn(`${ID} | export ${e.id}`, err); problems.push(`${e.title || e.id}: ${err?.message ?? err}`); }
+  }
+  return { bundle: M.buildBundle(parts, { version: game.modules.get(ID)?.version ?? "", exported: new Date().toISOString() }), problems };
+}
+
+/** GM: downloads the bundle file. Returns the bundle. */
+export async function exportFile() {
+  if (!game.user.isGM) return ui.notifications.warn("GM only.");
+  const { bundle, problems } = await build();
+  const text = JSON.stringify(bundle, null, 2); const name = M.fileName(game.world?.id ?? "");
+  const save = foundry.utils?.saveDataToFile ?? globalThis.saveDataToFile;
+  if (save) save(text, "application/json", name);
+  else { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "application/json" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+  ui.notifications.info(`${TITLE}: exported the settings of ${plural(Object.keys(bundle.modules).length, "module")}.`);
+  if (problems.length) ui.notifications.warn(`${TITLE}: left out ${problems.join("; ")}.`);
+  return bundle;
+}
+
+/**
+ * Reads a bundle's text against this world, nothing changed: { ok, error, version, modules: [{ id, title, version, via, how,
+ * ok, error, rows, unknown, skipped, invalid }] }. `how`: "module" (the module's own import) or "satchel".
+ */
+export async function readText(text) {
+  const b = M.readBundle(text);
+  if (!b.ok) return { ok: false, error: b.error, modules: [] };
+  const out = [];
+  for (const m of b.modules) {
+    const e = Reg.entry(m.id) ?? (m.id === ID ? { id: ID, title: TITLE, skipSettings: M.OWN_SKIP } : null);
+    const base = { id: m.id, title: e?.title || m.title, version: m.version, via: m.via, how: "satchel", rows: [], unknown: [], skipped: [], invalid: [] };
+    if (!game.modules.get(m.id)?.active) { out.push({ ...base, ok: false, error: "not active in this world" }); continue; }
+    try {
+      let r = null;
+      if (e?.importSettings) { r = await e.importSettings.read(m.data); if (r) base.how = "module"; }
+      if (!r && m.via === "module") { out.push({ ...base, ok: false, error: "exported by the module itself, and it has no import the Satchel can use" }); continue; }
+      if (!r) {
+        const d = defs(m.id); const cur = Object.fromEntries([...d.keys()].map(k => [k, get(m.id, k)]));
+        r = M.readModuleSettings(m.id, m.data, d, cur, e?.skipSettings ?? []);
+      }
+      out.push({ ...base, ok: !!r.ok, error: r.ok ? null : r.error ?? "couldn't read", rows: r.rows ?? [], unknown: r.unknown ?? [], skipped: r.skipped ?? [], invalid: r.invalid ?? [] });
+    } catch (err) { out.push({ ...base, ok: false, error: String(err?.message ?? err) }); }
+  }
+  return { ok: true, error: null, version: b.version, exported: b.exported, modules: out };
+}
+
+/** GM: writes the picked rows. `picks`: [{ id, how, rows }]. Returns { written, reload, failed: [text] }. */
+export async function apply(picks) {
+  if (!game.user.isGM) throw new Error("GM only.");
+  let written = 0, reload = false; const failed = [];
+  for (const p of picks ?? []) {
+    if (!p.rows?.length) continue;
+    const e = Reg.entry(p.id);
+    try {
+      if (p.how === "module" && e?.importSettings) {
+        const r = await e.importSettings.apply(p.rows);
+        written += r?.written ?? p.rows.length; reload ||= !!r?.reload; continue;
+      }
+      const d = defs(p.id);
+      for (const r of p.rows) {
+        if (!d.has(r.key)) continue;
+        await game.settings.set(p.id, r.key, r.to); written++;
+        if (d.get(r.key).requiresReload) reload = true;
+      }
+    } catch (err) { console.warn(`${ID} | import ${p.id}`, err); failed.push(`${p.id}: ${err?.message ?? err}`); }
+  }
+  return { written, reload, failed };
+}
+
+function pickFile() {
+  return new Promise(resolve => {
+    const input = document.createElement("input"); input.type = "file"; input.accept = ".json,application/json";
+    input.addEventListener("change", async () => { const f = input.files?.[0]; resolve(f ? await f.text() : null); });
+    input.addEventListener("cancel", () => resolve(null));
+    input.click();
+  });
+}
+
+/** GM: pick a file, preview, import after confirming. */
+export async function openImport() {
+  if (!game.user.isGM) return ui.notifications.warn("GM only.");
+  const text = await pickFile(); if (text == null) return null;
+  const r = await readText(text);
+  if (!r.ok) { ui.notifications.error(`${TITLE} settings import: ${r.error}.`); return null; }
+  await foundry.applications.instances?.get?.(`${ID}-import`)?.close();
+  return new ImportPreview(r).render({ force: true });
+}
+
+export class ImportPreview extends foundry.applications.api.ApplicationV2 {
+  static DEFAULT_OPTIONS = { id: `${ID}-import`, classes: ["ws-window"], window: { title: `${TITLE} · Import settings`, icon: "fa-solid fa-file-import", resizable: true }, position: { width: 720, height: 700 } };
+  constructor(result, opts = {}) { super(opts); this.result = result; }
+  async _renderHTML() {
+    const r = this.result; const div = document.createElement("div"); div.className = "ws-scroll";
+    const mod = (m, i) => {
+      const head = `<h3>${esc(m.title)} <span class="hint">${esc(m.id)}${m.version ? ` · file from ${esc(m.version)}` : ""}${m.how === "module" ? " · checked by the module's own import" : ""}</span></h3>`;
+      if (!m.ok) return `${head}<p class="ws-bad">Not imported: ${esc(m.error)}.</p>`;
+      const warn = [m.unknown.length ? `Not in this version, ignored: ${m.unknown.map(esc).join(", ")}.` : "", m.invalid.length ? `Values that don't fit, ignored: ${m.invalid.map(x => `${esc(x.key)} (${esc(x.reason)})`).join("; ")}.` : "", m.skipped.length ? `Records never imported: ${m.skipped.map(esc).join(", ")}.` : ""].filter(Boolean).map(t => `<p class="hint">${t}</p>`).join("");
+      const changed = m.rows.filter(x => x.changed).length;
+      return `${head}<p>${plural(changed, "setting")} would change.</p>${warn}${m.rows.length ? `<table class="ws-grid"><thead><tr><th></th><th>Setting</th><th>Now</th><th>From the file</th></tr></thead><tbody>${m.rows.map((x, j) => `<tr class="${x.changed ? "" : "ws-dim"}"><td><input type="checkbox" data-m="${i}" data-r="${j}" ${x.changed ? "checked" : ""}></td><td><strong>${esc(x.label)}</strong><br><span class="hint">${esc(x.key)}${x.note ? ` · ${esc(x.note)}` : ""}</span></td><td><code>${esc(M.preview(x.from))}</code></td><td><code>${esc(M.preview(x.to))}</code></td></tr>`).join("")}</tbody></table>` : ""}`;
+    };
+    div.innerHTML = `<p>Exported ${esc(r.exported || "at an unknown time")}${r.version ? ` by ${TITLE} ${esc(r.version)}` : ""}. Ticked settings are written when you press Import; nothing has changed yet.</p>${r.modules.map(mod).join("") || "<p>The file has no modules.</p>"}
+      <footer class="ws-footer"><button type="button" data-act="cancel"><i class="fa-solid fa-xmark"></i> Cancel</button><button type="button" data-act="import"><i class="fa-solid fa-file-import"></i> Import ticked settings</button></footer>`;
+    div.querySelector("[data-act=cancel]").addEventListener("click", () => this.close());
+    div.querySelector("[data-act=import]").addEventListener("click", async ev => {
+      const picks = r.modules.map((m, i) => ({ id: m.id, how: m.how, rows: m.ok ? m.rows.filter((_, j) => div.querySelector(`input[data-m="${i}"][data-r="${j}"]`)?.checked) : [] }));
+      const n = picks.reduce((t, p) => t + p.rows.length, 0);
+      if (!n) return ui.notifications.info(`${TITLE}: nothing ticked.`);
+      ev.currentTarget.disabled = true;
+      const res = await apply(picks);
+      await this.close();
+      ui.notifications.info(`${TITLE}: imported ${plural(res.written, "setting")}.`);
+      if (res.failed.length) ui.notifications.error(`${TITLE}: ${res.failed.join("; ")}`);
+      if (res.reload) foundry.applications.settings?.SettingsConfig?.reloadConfirm?.({ world: true });
+    });
+    return div;
+  }
+  _replaceHTML(result, content) { content.replaceChildren(result); }
+}
