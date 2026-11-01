@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1 (2026-11-01)
+
+Moves to **wanderers-core 0.5.1** (patch: every shared "Module data" journal folder is hidden, and duplicates are merged when the store is filed). No Satchel API, setting or data changes.
+
+### Changed
+- wanderers-core 0.5.1 vendored (CI checks `@v0.5.1`).
+
+### Untested in Foundry
+- A world with several Module data folders ends with one after a reload.
+
 ## 0.6.0 (2026-11-01)
 
 wanderers-core 0.5.0 (from 0.3.1): the shared GM-only store, a hidden *Module data* journal folder, remembered window positions and core's open key binding. Nothing to do after updating.

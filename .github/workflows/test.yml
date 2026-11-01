@@ -13,4 +13,4 @@ permissions:
 jobs:
   # wanderers-core's reusable checks: the vendored core matches its pin, then syntax, lint, types and tests.
   checks:
-    uses: cocoomg11/wanderers-core/.github/workflows/module-checks.yml@v0.5.0
+    uses: cocoomg11/wanderers-core/.github/workflows/module-checks.yml@v0.5.1

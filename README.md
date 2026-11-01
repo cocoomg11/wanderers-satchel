@@ -237,7 +237,7 @@ satchel.register({
 
 ## Built with wanderers-core
 
-The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.5.0) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels and the health fix reader, the settings file format and its checks, version compare, the REMOVE confirmation, the GM-only store journal and the *Module data* folder, remembered window placement, the open key binding and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
+The Satchel bundles a pinned copy of [wanderers-core](https://github.com/cocoomg11/wanderers-core) (0.5.1) in `vendor/wanderers-core/`: the feature registry, settings table, debug logging, health levels and the health fix reader, the settings file format and its checks, version compare, the REMOVE confirmation, the GM-only store journal and the *Module data* folder, remembered window placement, the open key binding and the shared window look (`vendor/wanderers-core/styles/wanderers-ui.css`, loaded before the Satchel's own stylesheet) come from there. Nothing is installed separately. The Satchel sends nothing over Foundry's socket.
 
 ## Install
 
