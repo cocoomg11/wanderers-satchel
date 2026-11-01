@@ -10,12 +10,14 @@ import * as SettingsIO from "./settings-io.mjs";
 import { HealthApp } from "./health.mjs";
 import { CleanupApp, cache } from "./cleanup.mjs";
 
+/** @type {Map<string, any>} */
 const updates = new Map(); // id → result (this page load); the session cache keeps them across reloads
+/** @type {Promise<Map<string, any>> | null} */
 let checking = null;
 
 /** Checks every installed module in the list (cached for the session unless `force`). */
 export async function checkUpdates({ force = false } = {}) {
-  if (!F.on("updateCheck")) return updates;
+  if (!F.on("updateCheck") || !game.user?.isGM) return updates;
   if (checking && !force) return checking;
   const c = cache();
   checking = (async () => {
@@ -32,17 +34,22 @@ export async function checkUpdates({ force = false } = {}) {
 // ---------------------------------------------------------------- debug logging for all
 function debugDefs() {
   const out = new Map();
-  for (const [k, c] of game.settings.settings) out.set(`${c.namespace}.${c.key}`, { type: c.type, scope: c.scope });
+  for (const [, c] of game.settings.settings) out.set(`${c.namespace}.${c.key}`, { type: c.type, scope: c.scope });
   return out;
 }
+/** The Satchel's own debug setting, part of "Debug logging for all". */
+const SELF = { id: ID, title: TITLE, debugSetting: { namespace: ID, key: "debugLog" } };
+/** Debug logging for all: { rows, state, missing } over every active entry with a debug setting, plus the Satchel itself. */
 export function debugState() {
-  const d = debugDefs(); const cur = {};
-  for (const e of Reg.entries()) if (e.debugSetting && game.modules.get(e.id)?.active) { const k = `${e.debugSetting.namespace}.${e.debugSetting.key}`; try { cur[k] = game.settings.get(e.debugSetting.namespace, e.debugSetting.key); } catch { } }
-  return Reg.R.debugPlan(Reg.entries().filter(e => game.modules.get(e.id)?.active), d, cur);
+  const d = debugDefs(); /** @type {Record<string, unknown>} */ const cur = {};
+  const list = [...Reg.entries().filter((/** @type {any} */ e) => game.modules.get(e.id)?.active), SELF];
+  for (const e of list) if (e.debugSetting) { const k = `${e.debugSetting.namespace}.${e.debugSetting.key}`; try { cur[k] = game.settings.get(e.debugSetting.namespace, e.debugSetting.key); } catch { } }
+  return Reg.R.debugPlan(list, d, cur);
 }
 /** Turns every module's debug setting on or off. Returns the number changed. */
+/** @param {boolean} on */
 export async function setDebugAll(on) {
-  if (!game.user.isGM) { ui.notifications.warn("GM only."); return 0; }
+  if (!game.user?.isGM) { ui.notifications.warn("GM only."); return 0; }
   let n = 0;
   for (const r of debugState().rows) {
     if (r.on === !!on) continue;
@@ -53,8 +60,10 @@ export async function setDebugAll(on) {
 }
 
 // ---------------------------------------------------------------- the window
+/** @type {Record<string, string>} */
 const UPDATE_CLASS = { update: "ws-warn", current: "ws-ok", ahead: "ws-info", error: "ws-bad", unknown: "ws-off" };
 
+/** @param {any} e @param {any} dbg */
 function card(e, dbg) {
   const m = Reg.moduleInfo(e.id);
   const c = Reg.R.cardModel(e, m, updates.get(e.id) ?? null);
@@ -67,7 +76,7 @@ function card(e, dbg) {
   return `<article class="ws-card" data-id="${esc(e.id)}">
     <header><h3>${esc(c.title)}</h3><span class="ws-version">${c.version ? esc(c.version) : ""}</span>${state}${src}</header>
     ${upd}
-    ${dbgRow ? `<p class="hint">Debug logging: ${dbgRow.on ? "on" : "off"}</p>` : ""}
+    ${F.on("debugAll") && c.active ? `<p class="hint">Debug logging: ${dbgRow ? (dbgRow.on ? "on" : "off") : dbg.missing.includes(e.id) ? "this version has no debug logging setting" : "none"}</p>` : ""}
     <div class="ws-buttons">
       ${btn("panel", "fa-solid fa-sliders", "Open control panel", c.can.panel)}
       ${F.on("combinedHealth") ? btn("health", "fa-solid fa-stethoscope", "Health", c.can.health || (c.active && !!(m?.relationships?.requires?.size ?? m?.relationships?.requires?.length)), c.can.health ? "" : "This module has no health check; dependencies only.") : ""}
@@ -101,18 +110,21 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
       <p class="hint">Each module keeps its own settings and windows; the Satchel only opens them. Other modules can join with <code>game.modules.get("${ID}").api.register({ id })</code>.</p>`;
     div.addEventListener("click", ev => this.#onClick(ev));
     div.querySelector("[data-act=debug]")?.addEventListener("change", async ev => {
-      const n = await setDebugAll(ev.currentTarget.checked);
-      ui.notifications.info(`${TITLE}: debug logging ${ev.currentTarget.checked ? "on" : "off"} (${n} changed).`);
+      const on = !!(/** @type {HTMLInputElement} */ (ev.currentTarget)).checked;
+      const n = await setDebugAll(on);
+      ui.notifications.info(`${TITLE}: debug logging ${on ? "on" : "off"} (${n} changed).`);
     });
     if (F.on("updateCheck") && list.some(e => !updates.has(e.id) && Reg.moduleInfo(e.id))) checkUpdates();
     return div;
   }
   _replaceHTML(result, content) { content.replaceChildren(result); }
 
+  /** @param {any} ev */
   async #onClick(ev) {
+    if (!game.user?.isGM) return;
     const b = ev.target.closest("button[data-act]"); if (!b) return;
     const act = b.dataset.act; const id = b.dataset.id;
-    const docs = id ? Reg.R.docLinks(Reg.moduleInfo(id) ?? { id }, Reg.entry(id)?.docs) : null;
+    const docs = Reg.R.docLinks(id ? Reg.moduleInfo(id) ?? { id } : {}, id ? Reg.entry(id)?.docs : {});
     switch (act) {
       case "panel": return Reg.openPanel(id);
       case "health": return new HealthApp({ ids: [id], id: `${ID}-health-${id}` }).render({ force: true });
@@ -131,7 +143,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
 
 /** Opens the hub (or brings it to the front). */
 export function open() {
-  if (!game.user.isGM) return ui.notifications.warn("GM only.");
+  if (!game.user?.isGM) return ui.notifications.warn("GM only.");
   const existing = foundry.applications.instances?.get?.(`${ID}-hub`);
   if (existing) { existing.render({ force: true }); existing.bringToFront?.(); return existing; }
   return new HubApp().render({ force: true });

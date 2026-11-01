@@ -7,32 +7,10 @@
  * for its tag instead. Any other manifest URL is fetched as JSON and its "version" read.
  */
 
-/** "v1.2.3", "1.2", "1.2.3-beta.1" → { parts: [1, 2, 3], pre: "beta.1" }, or null when there's no usable version. */
-export function parseVersion(v) {
-  if (v === null || v === undefined) return null;
-  const s = String(v).trim().replace(/^v(?=\d)/i, "");
-  const m = /^(\d+(?:\.\d+)*)(?:[-+]?([0-9A-Za-z.-]+))?$/.exec(s);
-  if (!m) return null;
-  return { parts: m[1].split(".").map(Number), pre: m[2] ?? "" };
-}
+import { parseVersion, compareVersions } from "../vendor/wanderers-core/index.mjs";
 
-/**
- * Compares two versions: -1 (a older), 0 (same), 1 (a newer), or null when either is missing or unreadable. Missing trailing parts
- * count as 0 (1.2 = 1.2.0). A pre-release is older than the same version without one (1.2.0-beta < 1.2.0).
- */
-export function compareVersions(a, b) {
-  const A = parseVersion(a), B = parseVersion(b);
-  if (!A || !B) return null;
-  const n = Math.max(A.parts.length, B.parts.length);
-  for (let i = 0; i < n; i++) {
-    const x = A.parts[i] ?? 0, y = B.parts[i] ?? 0;
-    if (x !== y) return x < y ? -1 : 1;
-  }
-  if (A.pre === B.pre) return 0;
-  if (!A.pre) return 1;
-  if (!B.pre) return -1;
-  return A.pre < B.pre ? -1 : 1;
-}
+/** Version parsing and comparing come from wanderers-core (semver ordering, "v" prefix, missing parts count as 0). */
+export { parseVersion, compareVersions };
 
 const GH = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/releases\/(?:latest\/download|download\/[^/]+)\/[^/?#]+\.json(?:[?#].*)?$/;
 
@@ -94,6 +72,8 @@ export function withTimeout(p, ms, abort) {
  * createCache), timeoutMs, force (skip the cache). Never throws. Result:
  *   { status: "current" | "update" | "ahead" | "unknown" | "error", installed, latest, error, source, cached }
  * "unknown": no manifest URL, or a version that can't be compared. "error": the check itself failed ("couldn't check").
+ * @param {any} mod
+ * @param {{ fetch?: any, cache?: any, timeoutMs?: number, force?: boolean }} [opts]
  */
 export async function checkUpdate(mod, { fetch, cache = null, timeoutMs = TIMEOUT_MS, force = false } = {}) {
   const installed = mod?.version ?? null;

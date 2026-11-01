@@ -3,7 +3,8 @@
  * module, documentation links and the "Debug logging for all" plan. No Foundry calls.
  *
  * Entry: { id, title, source: "adapter" | "registered", provisional, openPanel?, health?, exportSettings?, importSettings?,
- *          debugSetting?: { namespace, key }, docs?: { url, readme, changelog, bugs }, skipSettings: [key], notes: [text] }
+ *          debugSetting?: { namespace, key }, docs?: { url, readme, changelog, bugs }, skipSettings: [key], validators?: { key: fn },
+ *          healthTimeoutMs?: number, notes: [text] }
  */
 
 const FN_FIELDS = ["openPanel", "health", "exportSettings"];
@@ -19,6 +20,7 @@ export function normalizeRegistration(opts) {
   if (!opts || typeof opts !== "object" || Array.isArray(opts)) return { ok: false, entry: null, error: "register() needs an object like { id: \"my-module\" }", warnings };
   const id = typeof opts.id === "string" ? opts.id.trim() : "";
   if (!id || !ID_RE.test(id)) return { ok: false, entry: null, error: `"${String(opts.id ?? "")}" isn't a module id`, warnings };
+  /** @type {any} */
   const entry = { id, title: "", source: "registered", provisional: false, skipSettings: [], notes: [] };
   if (opts.title !== undefined) { if (typeof opts.title === "string" && opts.title.trim()) entry.title = opts.title.trim(); else warnings.push("title should be text"); }
   for (const k of FN_FIELDS) {
@@ -41,11 +43,24 @@ export function normalizeRegistration(opts) {
       entry.docs = docs;
     } else warnings.push("docs should be { url, readme, changelog, bugs }");
   }
+  if (opts.validators !== undefined) {
+    const v = opts.validators;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      /** @type {Record<string, Function>} */
+      const out = {};
+      for (const [k, fn] of Object.entries(v)) { if (typeof fn === "function") out[k] = fn; else warnings.push(`validators.${k} should be a function`); }
+      entry.validators = out;
+    } else warnings.push("validators should be { settingKey: (value) => true | reason }");
+  }
+  if (opts.healthTimeoutMs !== undefined) {
+    if (typeof opts.healthTimeoutMs === "number" && Number.isFinite(opts.healthTimeoutMs) && opts.healthTimeoutMs > 0) entry.healthTimeoutMs = opts.healthTimeoutMs;
+    else warnings.push("healthTimeoutMs should be a number of milliseconds");
+  }
   if (opts.skipSettings !== undefined) {
     if (Array.isArray(opts.skipSettings)) entry.skipSettings = opts.skipSettings.filter(k => typeof k === "string" && k);
     else warnings.push("skipSettings should be a list of setting keys");
   }
-  const known = new Set(["id", "title", ...FN_FIELDS, "importSettings", "debugSetting", "docs", "skipSettings"]);
+  const known = new Set(["id", "title", ...FN_FIELDS, "importSettings", "debugSetting", "docs", "skipSettings", "validators", "healthTimeoutMs"]);
   for (const k of Object.keys(opts)) if (!known.has(k)) warnings.push(`unknown field "${k}" ignored`);
   return { ok: true, entry, error: null, warnings };
 }
@@ -86,6 +101,7 @@ export function docLinks(mod = {}, docs = {}) {
 /**
  * One card: what the window draws for a module. `mod`: { id, title, version, active, manifest, url, readme, changelog, bugs } or null
  * when not installed; `update`: a result from checkUpdate or null. Buttons are on only when they can do something.
+ * @param {any} entry @param {any} mod @param {any} [update]
  */
 export function cardModel(entry, mod, update = null) {
   const installed = !!mod;

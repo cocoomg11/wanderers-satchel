@@ -7,6 +7,7 @@ import { ID, TITLE } from "./const.mjs";
 import * as R from "./registry-model.mjs";
 import { ADAPTERS } from "./adapters.mjs";
 
+/** @type {Map<string, any>} */
 const registered = new Map();
 
 /** api.register(opts): { ok, error, warnings }. A second registration for the same id replaces the first. */
@@ -31,8 +32,9 @@ export function moduleInfo(id) {
 /** Every entry the window shows (registrations override adapters; adapters only for installed modules). Never includes us. */
 export function entries() {
   const installed = [...game.modules.keys()];
-  return R.mergeEntries(ADAPTERS, registered, installed).filter(e => e.id !== ID);
+  return R.mergeEntries(ADAPTERS, /** @type {any} */ (registered), installed).filter(e => e.id !== ID);
 }
+/** @param {string} id @returns {any} */
 export const entry = id => entries().find(e => e.id === id) ?? null;
 export const registrations = () => [...registered.keys()];
 

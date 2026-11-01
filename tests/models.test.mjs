@@ -4,6 +4,8 @@ import * as V from "../scripts/version-model.mjs";
 import * as R from "../scripts/registry-model.mjs";
 import * as H from "../scripts/health-model.mjs";
 import * as S from "../scripts/settings-model.mjs";
+import * as FM from "../scripts/features-model.mjs";
+import { defineFeatures, defineSettings } from "../vendor/wanderers-core/index.mjs";
 
 // ---------------------------------------------------------------- versions
 test("compareVersions: v prefix, missing parts, pre-releases, missing values", () => {
@@ -179,7 +181,7 @@ test("groupHealth: summary, problems first, failed / none / inactive", () => {
 test("buildModuleExport: buckets, skip list, sorted, cloned", () => {
   const obj = { a: 1 };
   const e = S.buildModuleExport("m", [{ key: "z", scope: "world", value: obj }, { key: "a", scope: "client", value: true }, { key: "u", scope: "user", value: "x" }, { key: "hist", scope: "world", value: [1] }], { version: "1.0", skip: ["hist"] });
-  assert.deepEqual(e, { module: "m", format: 1, version: "1.0", world: { z: { a: 1 } }, client: { a: true, u: "x" } });
+  assert.deepEqual(e, { module: "m", format: 1, version: "1.0", exported: "", world: { z: { a: 1 } }, client: { a: true, u: "x" } });
   obj.a = 2; assert.equal(e.world.z.a, 1);
 });
 
@@ -226,4 +228,123 @@ test("checkValue and helpers", () => {
   assert.equal(S.checkValue({ type: undefined }, undefined).ok, false);
   assert.equal(S.preview("x".repeat(100)).length, 60);
   assert.equal(S.fileName("My World!", new Date(2026, 9, 31)), "wanderers-satchel-settings-my-world-2026-10-31.json");
+});
+
+// ---------------------------------------------------------------- 0.2.0: core, time limits, import safety
+test("features and settings tables are valid for core (stable keys)", () => {
+  const f = defineFeatures(FM.FEATURE_LIST);
+  assert.deepEqual(f.map(x => x.key), ["feature-updateCheck", "feature-combinedHealth", "feature-sharedSettings", "feature-debugAll", "feature-sceneButton"]);
+  assert.ok(f.every(x => x.default === true));
+  const rows = defineSettings(FM.SETTING_ROWS, { reserved: f.map(x => x.key) });
+  assert.deepEqual(rows.map(r => r.key), ["debugLog"]);
+});
+
+test("healthTimeout: long first run, adaptive later, a module's own limit, clamped", () => {
+  assert.equal(H.healthTimeout(), H.FIRST_RUN_MS);
+  assert.ok(H.FIRST_RUN_MS >= 60000, "the first run after a load waits at least a minute");
+  assert.equal(H.healthTimeout({ first: false, lastMs: 1000 }), H.BASE_MS);
+  assert.equal(H.healthTimeout({ first: false, lastMs: 25000 }), 75000);
+  assert.equal(H.healthTimeout({ first: false, lastMs: 10 * 60000 }), H.MAX_MS);
+  assert.equal(H.healthTimeout({ first: false, lastMs: null }), H.FIRST_RUN_MS);
+  assert.equal(H.healthTimeout({ first: false, own: 1000 }), H.MIN_MS);
+  assert.equal(H.healthTimeout({ first: false, own: 40000 }), 40000);
+  assert.equal(H.healthTimeout({ first: true, own: 40000 }), H.FIRST_RUN_MS);
+  assert.equal(H.healthTimeout({ first: true, own: 10 ** 9 }), H.MAX_MS);
+});
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+test("runChecks: modules run at once and independently; slow, timeout, late answer, throw", async () => {
+  const changes = [];
+  const list = [{ id: "fast" }, { id: "slow" }, { id: "hung" }, { id: "late" }, { id: "boom" }];
+  const runOne = async e => {
+    if (e.id === "fast") return { state: "ran", report: [{ level: "ok", text: "fine" }] };
+    if (e.id === "slow") { await wait(60); return { state: "ran", report: [{ level: "ok", text: "slow but fine" }] }; }
+    if (e.id === "hung") return new Promise(() => { });
+    if (e.id === "late") { await wait(150); return { state: "ran", report: [{ level: "warn", text: "late" }] }; }
+    throw new Error("kaboom");
+  };
+  const limits = { fast: 1000, slow: 1000, hung: 80, late: 80, boom: 1000 };
+  const t0 = Date.now();
+  const job = H.runChecks(list, runOne, { timeoutFor: e => limits[e.id], slowMs: 30, onChange: (i, r) => changes.push([list[i].id, r.state]) });
+  assert.deepEqual(job.results.map(r => r.state), ["pending", "pending", "pending", "pending", "pending"]);
+  const done = await job.done;
+  assert.ok(Date.now() - t0 < 140, "done waits for the longest limit, not the sum of the checks");
+  const st = id => done.find(r => r.id === id);
+  assert.equal(st("fast").state, "ran"); assert.equal(st("slow").state, "ran");
+  assert.equal(st("hung").state, "timeout"); assert.equal(st("hung").limitMs, 80);
+  assert.equal(st("late").state, "timeout");
+  assert.equal(st("boom").state, "failed"); assert.match(st("boom").error, /kaboom/);
+  assert.ok(changes.some(([id, s]) => id === "slow" && s === "slow"), "a check past slowMs shows still checking");
+  const g = H.groupHealth(done);
+  assert.equal(g.summary.waiting, 2); assert.equal(g.summary.failed, 1);
+  assert.match(g.groups.find(x => x.id === "hung").sections[0].lines[0].text, /No answer yet after/);
+  assert.equal(g.groups.find(x => x.id === "hung").worst, "warn");
+  assert.match(H.summaryText(g.summary), /2 still checking/);
+  await wait(120);
+  assert.equal(job.results[3].state, "ran"); assert.equal(job.results[3].late, true);
+  assert.match(H.groupHealth(job.results).groups.find(x => x.id === "late").note, /after its time limit/);
+  assert.equal(job.results[2].state, "timeout");
+});
+
+test("runChecks: empty list is done at once; a non-object result is a failure", async () => {
+  assert.deepEqual(await H.runChecks([], () => ({})).done, []);
+  const r = await H.runChecks([{ id: "x" }], () => 5, { timeoutFor: () => 1000 }).done;
+  assert.equal(r[0].state, "failed");
+});
+
+test("groupHealth: pending and slow rows read as info, not problems", () => {
+  const g = H.groupHealth([{ id: "a", state: "pending" }, { id: "b", state: "slow" }]);
+  assert.deepEqual(g.groups.map(x => x.worst), ["info", "info"]);
+  assert.match(g.groups[1].sections[0].lines[0].text, /Still checking/);
+  assert.equal(g.summary.worst, "ok"); assert.equal(g.summary.waiting, 2);
+});
+
+test("normalizeReport: core's { report } wrapper", () => {
+  assert.equal(H.normalizeReport({ report: [{ title: "Core", lines: [{ level: "ok", text: "x" }] }] })[0].title, "Core");
+});
+
+test("plainJson: plain data only, size and depth limits, no prototype keys", () => {
+  assert.equal(S.plainJson({ a: [1, "x", true, null, { b: 2 }] }), true);
+  assert.match(String(S.plainJson(JSON.parse('{"__proto__": {"x": 1}}'))), /isn't allowed/);
+  assert.match(String(S.plainJson({ constructor: 1 })), /isn't allowed/);
+  let deep = {}; const top = deep; for (let i = 0; i < 20; i++) { deep.n = {}; deep = deep.n; }
+  assert.match(String(S.plainJson(top)), /nested too deeply/);
+  assert.match(String(S.plainJson({ s: "x".repeat(S.MAX_VALUE_BYTES) })), /too large/);
+  assert.match(String(S.plainJson({ d: new Date() })), /plain data/);
+  assert.match(String(S.plainJson({ n: Infinity })), /finite/);
+});
+
+test("readModuleSettings: Object settings validated (plain JSON, then the module's own check)", () => {
+  const defs = new Map([["net", { scope: "world", type: Object }], ["list", { scope: "world", type: Array }], ["col", { scope: "world", type: { name: "ColorField" } }]]);
+  const own = { net: v => Array.isArray(v.points) || "should have points" };
+  const ok = S.readModuleSettings("m", { world: { net: { points: [] }, list: [1], col: "#fff" } }, defs, {}, [], own);
+  assert.deepEqual(ok.rows.map(r => r.key).sort(), ["col", "list", "net"]);
+  const bad = S.readModuleSettings("m", { world: { net: { nope: 1 }, list: [JSON.parse('{"__proto__":1}')], col: { constructor: 1 } } }, defs, {}, [], own);
+  assert.deepEqual(bad.rows, []);
+  assert.deepEqual(bad.invalid.map(i => i.key).sort(), ["col", "list", "net"]);
+  assert.match(bad.invalid.find(i => i.key === "net").reason, /should have points/);
+});
+
+test("recheck: the write-time check matches the preview", () => {
+  assert.equal(S.recheck({ type: Boolean }, "yes").ok, false);
+  assert.deepEqual(S.recheck({ type: Number, range: { min: 0, max: 5 } }, 9), { ok: true, value: 5, reason: "kept within 0 to 5" });
+  assert.equal(S.recheck({ type: Object }, { a: 1 }, { k: () => "no" }, "k").ok, false);
+  assert.equal(S.recheck({ type: Object }, { a: 1 }, {}, "k").ok, true);
+  assert.equal(S.recheck({ type: Object }, { constructor: 1 }, {}, "k").ok, false);
+  assert.deepEqual(S.recheck({ type: Array }, [1], { k: v => ({ ok: true, value: v.concat(2) }) }, "k"), { ok: true, value: [1, 2] });
+});
+
+test("readBundle: drops ids that aren't module ids, limits the file size", () => {
+  const r = S.readBundle({ module: "wanderers-satchel", format: 1, modules: { "good-id": { data: {} }, "bad id!": { data: {} }, "constructor": { data: {} } } });
+  assert.deepEqual(r.modules.map(m => m.id), ["good-id"]);
+  assert.match(S.readBundle(" ".repeat(S.MAX_FILE + 1)).error, /too large/);
+});
+
+test("registration: validators and healthTimeoutMs", () => {
+  const r = R.normalizeRegistration({ id: "m", validators: { a: () => true, b: 5 }, healthTimeoutMs: 45000 });
+  assert.equal(typeof r.entry.validators.a, "function"); assert.equal(r.entry.validators.b, undefined);
+  assert.equal(r.entry.healthTimeoutMs, 45000);
+  assert.ok(r.warnings.some(w => /validators\.b/.test(w)));
+  assert.ok(R.normalizeRegistration({ id: "m", healthTimeoutMs: -1 }).warnings.some(w => /healthTimeoutMs/.test(w)));
+  assert.ok(R.normalizeRegistration({ id: "m", validators: [] }).warnings.some(w => /validators should/.test(w)));
 });

@@ -29,6 +29,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Vendored wanderers-core matches its pin
+        run: node vendor/wanderers-core/vendor.mjs verify --remote
+
       - name: Tests
         run: |
           npm run check
@@ -49,7 +52,8 @@ jobs:
 
       - name: Build module.zip
         run: |
-          zip -r module.zip module.json scripts styles README.md CHANGELOG.md LICENSE
+          zip -r module.zip module.json scripts styles vendor README.md CHANGELOG.md LICENSE \
+            -x 'vendor/wanderers-core/config/*' 'vendor/wanderers-core/vendor.mjs'
           unzip -l module.zip
 
       - name: Upload release assets

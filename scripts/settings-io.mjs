@@ -9,14 +9,27 @@
 import { ID, TITLE, esc, plural } from "./const.mjs";
 import * as M from "./settings-model.mjs";
 import * as Reg from "./registry.mjs";
+import { getSetting as get, settingDefs } from "../vendor/wanderers-core/foundry/index.mjs";
+import { log } from "./core.mjs";
 
-const get = (ns, k) => { try { return game.settings.get(ns, k); } catch { return undefined; } };
-
-/** A namespace's registered settings: Map key → { scope, type, choices, range, name, requiresReload, default }. */
+/**
+ * A namespace's registered settings: Map key → { scope, type, choices, range, name, requiresReload, default }.
+ * @param {string} ns
+ */
 export function defs(ns) {
   const out = new Map();
-  for (const [, c] of game.settings.settings) if (c.namespace === ns) out.set(c.key, { scope: c.scope, type: c.type, choices: c.choices, range: c.range, name: c.name, requiresReload: !!c.requiresReload, default: c.default });
+  for (const [k, c] of settingDefs(ns)) out.set(k, { scope: c.scope, type: c.type, choices: c.choices, range: c.range, name: c.name, requiresReload: !!c.requiresReload, default: c.default });
   return out;
+}
+
+/**
+ * The entry a bundle part may be read into or written to: one the hub shows (and is active), or the Satchel itself. Anything else
+ * (a module the Satchel doesn't know, an id typed into the file) is never touched.
+ * @param {string} id
+ */
+function target(id) {
+  if (id === ID) return { id: ID, title: TITLE, skipSettings: M.OWN_SKIP };
+  return Reg.entry(id);
 }
 
 /** The modules the bundle covers: every active entry, plus the Satchel itself. */
@@ -25,8 +38,9 @@ function targets() {
   return [...list, { id: ID, title: TITLE, skipSettings: M.OWN_SKIP }];
 }
 
-/** Builds the bundle object (no download). */
+/** Builds the bundle object (no download). GM only. */
 export async function build() {
+  if (!game.user?.isGM) throw new Error("GM only.");
   const parts = [], problems = [];
   for (const e of targets()) {
     const version = game.modules.get(e.id)?.version ?? "";
@@ -34,7 +48,7 @@ export async function build() {
       if (typeof e.exportSettings === "function") { parts.push({ id: e.id, title: e.title || e.id, version, via: "module", data: await e.exportSettings() }); continue; }
       const d = defs(e.id); if (!d.size) continue;
       const list = [...d].map(([key, x]) => ({ key, scope: x.scope, value: get(e.id, key) }));
-      parts.push({ id: e.id, title: e.title || e.id, version, via: "settings", data: M.buildModuleExport(e.id, list, { version, skip: e.skipSettings ?? [] }) });
+      parts.push({ id: e.id, title: e.title || e.id, version, via: "settings", data: M.buildModuleExport(e.id, list, { version, exported: new Date().toISOString(), skip: e.skipSettings ?? [] }) });
     } catch (err) { console.warn(`${ID} | export ${e.id}`, err); problems.push(`${e.title || e.id}: ${err?.message ?? err}`); }
   }
   return { bundle: M.buildBundle(parts, { version: game.modules.get(ID)?.version ?? "", exported: new Date().toISOString() }), problems };
@@ -58,20 +72,23 @@ export async function exportFile() {
  * ok, error, rows, unknown, skipped, invalid }] }. `how`: "module" (the module's own import) or "satchel".
  */
 export async function readText(text) {
+  if (!game.user?.isGM) return { ok: false, error: "GM only", modules: [] };
   const b = M.readBundle(text);
   if (!b.ok) return { ok: false, error: b.error, modules: [] };
   const out = [];
   for (const m of b.modules) {
-    const e = Reg.entry(m.id) ?? (m.id === ID ? { id: ID, title: TITLE, skipSettings: M.OWN_SKIP } : null);
+    const e = target(m.id);
     const base = { id: m.id, title: e?.title || m.title, version: m.version, via: m.via, how: "satchel", rows: [], unknown: [], skipped: [], invalid: [] };
+    if (!e) { out.push({ ...base, ok: false, error: "not a module Wanderer's Satchel shows in this world, so it is never imported" }); continue; }
     if (!game.modules.get(m.id)?.active) { out.push({ ...base, ok: false, error: "not active in this world" }); continue; }
     try {
+      /** @type {any} */
       let r = null;
       if (e?.importSettings) { r = await e.importSettings.read(m.data); if (r) base.how = "module"; }
       if (!r && m.via === "module") { out.push({ ...base, ok: false, error: "exported by the module itself, and it has no import the Satchel can use" }); continue; }
       if (!r) {
         const d = defs(m.id); const cur = Object.fromEntries([...d.keys()].map(k => [k, get(m.id, k)]));
-        r = M.readModuleSettings(m.id, m.data, d, cur, e?.skipSettings ?? []);
+        r = M.readModuleSettings(m.id, m.data, d, cur, e?.skipSettings ?? [], e?.validators ?? {});
       }
       out.push({ ...base, ok: !!r.ok, error: r.ok ? null : r.error ?? "couldn't read", rows: r.rows ?? [], unknown: r.unknown ?? [], skipped: r.skipped ?? [], invalid: r.invalid ?? [] });
     } catch (err) { out.push({ ...base, ok: false, error: String(err?.message ?? err) }); }
@@ -79,22 +96,32 @@ export async function readText(text) {
   return { ok: true, error: null, version: b.version, exported: b.exported, modules: out };
 }
 
-/** GM: writes the picked rows. `picks`: [{ id, how, rows }]. Returns { written, reload, failed: [text] }. */
+/**
+ * GM: writes the picked rows. `picks`: [{ id, how, rows }]. Returns { written, reload, failed: [text] }. Every row is checked
+ * again here (the same rules as the preview, the skip list included), so rows passed straight to api.settings.apply() can't write
+ * a value the preview would have refused, or into a module the Satchel doesn't show.
+ * @param {any[]} picks
+ */
 export async function apply(picks) {
-  if (!game.user.isGM) throw new Error("GM only.");
+  if (!game.user?.isGM) throw new Error("GM only.");
   let written = 0, reload = false; const failed = [];
-  for (const p of picks ?? []) {
-    if (!p.rows?.length) continue;
-    const e = Reg.entry(p.id);
+  for (const p of Array.isArray(picks) ? picks : []) {
+    if (!p || typeof p.id !== "string" || !Array.isArray(p.rows) || !p.rows.length) continue;
+    const e = target(p.id);
+    if (!e) { failed.push(`${p.id}: not a module Wanderer's Satchel shows`); continue; }
+    if (!game.modules.get(p.id)?.active) { failed.push(`${p.id}: not active in this world`); continue; }
     try {
-      if (p.how === "module" && e?.importSettings) {
+      if (p.how === "module" && e.importSettings) {
         const r = await e.importSettings.apply(p.rows);
         written += r?.written ?? p.rows.length; reload ||= !!r?.reload; continue;
       }
-      const d = defs(p.id);
+      const d = defs(p.id); const skip = new Set(e.skipSettings ?? []);
       for (const r of p.rows) {
-        if (!d.has(r.key)) continue;
-        await game.settings.set(p.id, r.key, r.to); written++;
+        if (!r || typeof r.key !== "string" || skip.has(r.key) || !d.has(r.key)) { if (r?.key) failed.push(`${p.id}.${r.key}: not imported`); continue; }
+        const c = M.recheck(d.get(r.key), r.to, e.validators ?? {}, r.key);
+        if (!c.ok) { failed.push(`${p.id}.${r.key}: ${c.reason}`); continue; }
+        await game.settings.set(p.id, r.key, c.value); written++;
+        log(`import ${p.id}.${r.key}`);
         if (d.get(r.key).requiresReload) reload = true;
       }
     } catch (err) { console.warn(`${ID} | import ${p.id}`, err); failed.push(`${p.id}: ${err?.message ?? err}`); }
@@ -102,10 +129,15 @@ export async function apply(picks) {
   return { written, reload, failed };
 }
 
+/** @returns {Promise<string | null>} */
 function pickFile() {
   return new Promise(resolve => {
     const input = document.createElement("input"); input.type = "file"; input.accept = ".json,application/json";
-    input.addEventListener("change", async () => { const f = input.files?.[0]; resolve(f ? await f.text() : null); });
+    input.addEventListener("change", async () => {
+      const f = input.files?.[0]; if (!f) return resolve(null);
+      if (f.size > M.MAX_FILE) { ui.notifications.error(`${TITLE} settings import: the file is too large.`); return resolve(null); }
+      resolve(await f.text());
+    });
     input.addEventListener("cancel", () => resolve(null));
     input.click();
   });
@@ -135,12 +167,13 @@ export class ImportPreview extends foundry.applications.api.ApplicationV2 {
     };
     div.innerHTML = `<p>Exported ${esc(r.exported || "at an unknown time")}${r.version ? ` by ${TITLE} ${esc(r.version)}` : ""}. Ticked settings are written when you press Import; nothing has changed yet.</p>${r.modules.map(mod).join("") || "<p>The file has no modules.</p>"}
       <footer class="ws-footer"><button type="button" data-act="cancel"><i class="fa-solid fa-xmark"></i> Cancel</button><button type="button" data-act="import"><i class="fa-solid fa-file-import"></i> Import ticked settings</button></footer>`;
-    div.querySelector("[data-act=cancel]").addEventListener("click", () => this.close());
-    div.querySelector("[data-act=import]").addEventListener("click", async ev => {
-      const picks = r.modules.map((m, i) => ({ id: m.id, how: m.how, rows: m.ok ? m.rows.filter((_, j) => div.querySelector(`input[data-m="${i}"][data-r="${j}"]`)?.checked) : [] }));
+    div.querySelector("[data-act=cancel]")?.addEventListener("click", () => this.close());
+    div.querySelector("[data-act=import]")?.addEventListener("click", async ev => {
+      if (!game.user?.isGM) return;
+      const picks = r.modules.map((/** @type {any} */ m, /** @type {number} */ i) => ({ id: m.id, how: m.how, rows: m.ok ? m.rows.filter((/** @type {any} */ _, /** @type {number} */ j) => (/** @type {HTMLInputElement | null} */ (div.querySelector(`input[data-m="${i}"][data-r="${j}"]`)))?.checked) : [] }));
       const n = picks.reduce((t, p) => t + p.rows.length, 0);
       if (!n) return ui.notifications.info(`${TITLE}: nothing ticked.`);
-      ev.currentTarget.disabled = true;
+      (/** @type {HTMLButtonElement} */ (ev.currentTarget)).disabled = true;
       const res = await apply(picks);
       await this.close();
       ui.notifications.info(`${TITLE}: imported ${plural(res.written, "setting")}.`);
