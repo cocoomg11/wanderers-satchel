@@ -1,0 +1,10 @@
+{
+  "name": "wanderers-satchel",
+  "private": true,
+  "description": "Tests for the Wanderer's Satchel Foundry VTT module (the module itself needs no install step).",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "for f in scripts/*.mjs tests/*.mjs; do node --check \"$f\" || exit 1; done"
+  }
+}

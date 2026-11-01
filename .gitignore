@@ -1,0 +1,4 @@
+# Built in the release workflow from src/packs (node tools/build-packs.mjs compile)
+/packs/
+/node_modules/
+/module.zip
