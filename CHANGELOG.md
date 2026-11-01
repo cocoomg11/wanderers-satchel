@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0
+## 0.5.0 (2026-11-01)
 
 Help around module updates: what's out, what changed, a settings backup before and after, and Fix buttons in the health check. Each part has its own switch.
 
@@ -36,7 +36,7 @@ The backup after a version change reads every module's settings in Foundry's `se
 - Remove Satchel data: the journal category counts 1 and deletes it; *Kept in this browser* clears the last-check time.
 - Both themes and a narrow hub (720 px): the What's new cards, the backups table and the Fix buttons.
 
-## 0.4.1
+## 0.4.1 (2026-11-01)
 
 Two keyboard fixes from a live check, wanderers-core 0.3.1, and clearer descriptions.
 
@@ -59,7 +59,7 @@ Two keyboard fixes from a live check, wanderers-core 0.3.1, and clearer descript
 - No 404 for `vendor/wanderers-core/styles/wanderers-ui.css`; the hub at 640x720 and 1000x450 still shows the module table at full height (now core's rule); both themes.
 - The module list in Foundry's Manage Modules shows the new description.
 
-## 0.4.0
+## 0.4.0 (2026-11-01)
 
 A filter for the health check, three fixes from a live retest, and the shared look of wanderers-core.
 
@@ -88,7 +88,7 @@ A filter for the health check, three fixes from a live retest, and the shared lo
 - Import preview with Loot Ledger installed: its setting names show localized.
 - With another module on core 0.3.1 (revision 2) loaded too: the Satchel's windows keep their look.
 
-## 0.3.0
+## 0.3.0 (2026-11-01)
 
 A new hub layout: a sidebar with pages instead of one long list of cards. Includes the 0.2.1 fixes below (0.2.1 was not released on its own).
 
@@ -112,7 +112,7 @@ A new hub layout: a sidebar with pages instead of one long list of cards. Includ
 - Feature switches off (Update check, Combined health check, Settings export / import, Debug logging for all): the matching page, column or card goes away, and a page that was open goes back to Overview.
 - Whisper to GMs from the Health check page: the card looks right in chat.
 
-## 0.2.1 (not released separately; part of 0.3.0)
+## 0.2.1 (2026-11-01; not released separately, part of 0.3.0)
 
 ### Fixed
 
@@ -124,7 +124,7 @@ A new hub layout: a sidebar with pages instead of one long list of cards. Includ
 - The combined health check right after a world load with toolkit 1.27.1 (expected: no Boss loot timeout, the toolkit answers in a few seconds).
 - A registered module whose `health()` reads `timeoutMs`.
 
-## 0.2.0
+## 0.2.0 (2026-11-01)
 
 Built on the shared wanderers-core 0.2.0 library, a health check that no longer gives up on a slow module, better module cards, and safer imports.
 
@@ -167,7 +167,7 @@ Not run in a live world yet; check:
 - [ ] Remove Satchel data still counts and removes the health cards, session cache and settings (including Debug logging).
 - [ ] The release zip contains `vendor/wanderers-core/` without `config/` and `vendor.mjs`, and the module loads from it (no 404 in the console).
 
-## 0.1.0
+## 0.1.0 (2026-11-01)
 
 First release.
 
