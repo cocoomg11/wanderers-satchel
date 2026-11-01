@@ -4,12 +4,14 @@
  *
  * Entry: { id, title, source: "adapter" | "registered", provisional, openPanel?, health?, exportSettings?, importSettings?,
  *          debugSetting?: { namespace, key }, docs?: { url, readme, changelog, bugs }, skipSettings: [key], validators?: { key: fn },
- *          healthTimeoutMs?: number, notes: [text] }
+ *          healthTimeoutMs?: number, fixes?: { actionId: fn }, notes: [text] }
  */
 
 const FN_FIELDS = ["openPanel", "health", "exportSettings"];
 const ID_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 const DOC_KEYS = ["url", "readme", "changelog", "bugs"];
+/** A fix action id (health lines name one with `fix: "id"` or `fix: { label, action: "id" }`). "satchel:" ids are the Satchel's own. */
+export const FIX_ID = /^[A-Za-z0-9_.:-]{1,64}$/;
 
 /**
  * Reads what a module passed to api.register(): { ok, entry, error, warnings }. Unknown fields and wrong types are dropped with a
@@ -52,6 +54,18 @@ export function normalizeRegistration(opts) {
       entry.validators = out;
     } else warnings.push("validators should be { settingKey: (value) => true | reason }");
   }
+  if (opts.fixes !== undefined) {
+    const v = opts.fixes;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      /** @type {Record<string, Function>} */
+      const out = {};
+      for (const [k, fn] of Object.entries(v)) {
+        if (!FIX_ID.test(k) || k.startsWith("satchel:")) warnings.push(`fixes.${k}: not a usable action id`);
+        else if (typeof fn === "function") out[k] = fn; else warnings.push(`fixes.${k} should be a function`);
+      }
+      entry.fixes = out;
+    } else warnings.push("fixes should be { actionId: (ctx) => result }");
+  }
   if (opts.healthTimeoutMs !== undefined) {
     if (typeof opts.healthTimeoutMs === "number" && Number.isFinite(opts.healthTimeoutMs) && opts.healthTimeoutMs > 0) entry.healthTimeoutMs = opts.healthTimeoutMs;
     else warnings.push("healthTimeoutMs should be a number of milliseconds");
@@ -60,7 +74,7 @@ export function normalizeRegistration(opts) {
     if (Array.isArray(opts.skipSettings)) entry.skipSettings = opts.skipSettings.filter(k => typeof k === "string" && k);
     else warnings.push("skipSettings should be a list of setting keys");
   }
-  const known = new Set(["id", "title", ...FN_FIELDS, "importSettings", "debugSetting", "docs", "skipSettings", "validators", "healthTimeoutMs"]);
+  const known = new Set(["id", "title", ...FN_FIELDS, "importSettings", "debugSetting", "docs", "skipSettings", "validators", "healthTimeoutMs", "fixes"]);
   for (const k of Object.keys(opts)) if (!known.has(k)) warnings.push(`unknown field "${k}" ignored`);
   return { ok: true, entry, error: null, warnings };
 }

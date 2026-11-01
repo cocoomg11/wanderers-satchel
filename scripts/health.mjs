@@ -7,6 +7,7 @@ import { ID, TITLE } from "./const.mjs";
 import * as H from "./health-model.mjs";
 import { dependencyLines } from "./adapters-model.mjs";
 import * as Reg from "./registry.mjs";
+import * as Self from "./self.mjs";
 import { log } from "./core.mjs";
 import * as View from "./hub-view.mjs";
 import { UI_CLASSES } from "../vendor/wanderers-core/index.mjs";
@@ -63,7 +64,8 @@ export async function checkOne(e, { limitMs = H.FIRST_RUN_MS } = {}) {
  */
 export function start(ids = null, onChange) {
   if (!game.user?.isGM) return null;
-  const list = Reg.entries().filter(e => !ids || ids.includes(e.id)).map(e => ({ ...e, title: e.title || Reg.moduleInfo(e.id)?.title || e.id }));
+  // The Satchel's own check comes last (its storage, backups, update check).
+  const list = [...Reg.entries(), Self.ENTRY].filter(e => !ids || ids.includes(e.id)).map(e => ({ ...e, title: e.title || Reg.moduleInfo(e.id)?.title || e.id }));
   const changed = (/** @type {number} */ i, /** @type {any} */ r) => {
     latestResults.set(r.id, { result: r, at: Date.now() });
     try { onChange?.(i, r); } catch { }
@@ -87,6 +89,17 @@ export async function run(ids = null) {
  * @param {{ card?: boolean, filter?: Set<string> | null }} [o]
  */
 export const html = (g, o = {}) => View.healthHtml(g, { ...o, summaryTitle: H.summaryText(g.summary) });
+
+/** The entry behind a health group (a module's, or the Satchel's own). @param {string} id */
+export const entryOf = (/** @type {string} */ id) => id === ID ? Self.ENTRY : Reg.entry(id);
+/**
+ * The fix on one line of a module's latest result, or null when that result or line is gone (a newer check replaced it).
+ * @param {string} id @param {string} key
+ */
+export function fixOf(id, key) {
+  const l = latestResults.get(id); if (!l) return null;
+  return H.findFix(H.groupHealth([l.result]).groups[0], key);
+}
 
 /** Whispers the report to every GM as a chat card (wrapped in the shared look's root classes). @param {any} results */
 export function post(results) {

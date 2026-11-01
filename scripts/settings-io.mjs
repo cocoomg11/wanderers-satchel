@@ -42,20 +42,28 @@ function targets() {
   return [...list, { id: ID, title: TITLE, skipSettings: M.OWN_SKIP }];
 }
 
-/** Builds the bundle object (no download). GM only. */
+/**
+ * Builds the bundle object (no download). GM only. Every module read by the Satchel is read synchronously, before the first await
+ * (the settings backup taken in the `setup` hook relies on it); modules with their own exportSettings() are asked after that.
+ * The parts keep the registry's order.
+ */
 export async function build() {
   if (!game.user?.isGM) throw new Error("GM only.");
-  const parts = [], problems = [];
-  for (const e of targets()) {
+  /** @type {any[]} */ const parts = []; /** @type {string[]} */ const problems = [];
+  /** @type {[number, any, string][]} */ const own = [];
+  targets().forEach((e, i) => {
     const version = game.modules.get(e.id)?.version ?? "";
+    if (typeof e.exportSettings === "function") { own.push([i, e, version]); return; }
     try {
-      if (typeof e.exportSettings === "function") { parts.push({ id: e.id, title: e.title || e.id, version, via: "module", data: await e.exportSettings() }); continue; }
-      const d = defs(e.id); if (!d.size) continue;
+      const d = defs(e.id); if (!d.size) return;
       const list = [...d].map(([key, x]) => ({ key, scope: x.scope, value: get(e.id, key) }));
-      parts.push({ id: e.id, title: e.title || e.id, version, via: "settings", data: M.buildModuleExport(e.id, list, { version, exported: new Date().toISOString(), skip: e.skipSettings ?? [] }) });
+      parts[i] = { id: e.id, title: e.title || e.id, version, via: "settings", data: M.buildModuleExport(e.id, list, { version, exported: new Date().toISOString(), skip: e.skipSettings ?? [] }) };
     } catch (err) { console.warn(`${ID} | export ${e.id}`, err); problems.push(`${e.title || e.id}: ${err?.message ?? err}`); }
+  });
+  for (const [i, e, version] of own) {
+    try { parts[i] = { id: e.id, title: e.title || e.id, version, via: "module", data: await e.exportSettings() }; } catch (err) { console.warn(`${ID} | export ${e.id}`, err); problems.push(`${e.title || e.id}: ${err?.message ?? err}`); }
   }
-  return { bundle: M.buildBundle(parts, { version: game.modules.get(ID)?.version ?? "", exported: new Date().toISOString() }), problems };
+  return { bundle: M.buildBundle(parts.filter(Boolean), { version: game.modules.get(ID)?.version ?? "", exported: new Date().toISOString() }), problems };
 }
 
 /** GM: downloads the bundle file. Returns the bundle. */

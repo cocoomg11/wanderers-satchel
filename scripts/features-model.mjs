@@ -6,8 +6,12 @@
 /** @type {import("../vendor/wanderers-core/features-model.mjs").FeatureInput[]} */
 export const FEATURE_LIST = [
   { id: "updateCheck", label: "Update check", hint: "Asks each module's manifest (its latest GitHub release) whether a newer version is out. Answers are kept for this browser session. Off: nothing is fetched." },
+  { id: "dailyUpdateCheck", label: "Daily update check", hint: "Once a day, when a GM loads the world, checks every module for updates and says so in a notification when one is out. Off: updates are only checked when you open the Satchel or press Check now.", needs: ["updateCheck"] },
+  { id: "whatsNew", label: "What's new", hint: "After a module's version changes, shows the GM that module's release notes (from its changelog, or its GitHub releases) until dismissed." },
+  { id: "settingsBackup", label: "Settings backups", hint: "Keeps the last 5 backups of every module's settings in a GM-only journal: one when updates are found, one on the first load after a version change, and any you take by hand. Restore goes through the import preview.", needs: ["sharedSettings"] },
   { id: "combinedHealth", label: "Combined health check", hint: "One button runs every module's own health check and shows the results grouped by module, with a summary on top." },
   { id: "sharedSettings", label: "Settings export / import for all", hint: "Save the settings of every module in the Satchel to one JSON file and load them back, with a preview of what would change." },
+  { id: "healthFixes", label: "Health fix buttons", hint: "Health lines that a module can repair itself show a Fix button. Off: the lines show without it.", needs: ["combinedHealth"] },
   { id: "debugAll", label: "Debug logging for all", hint: "One switch that turns each module's own Debug logging setting on or off." },
   { id: "sceneButton", label: "Scene control button", hint: "A Wanderer's Satchel button in the token controls (GM only)." }
 ];

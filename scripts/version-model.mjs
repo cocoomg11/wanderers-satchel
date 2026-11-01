@@ -23,6 +23,24 @@ export function updateSource(manifest) {
   return { kind: "manifest", url };
 }
 
+const GH_REPO = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?(?:[?#].*)?$/;
+/**
+ * The manifest URL to check for a module: its own `manifest`, or, when it has none but its project URL is a GitHub repository,
+ * that repository's latest release manifest (`https://github.com/<owner>/<repo>/releases/latest/download/module.json`).
+ * @param {{ manifest?: string | null, url?: string | null }} mod
+ * @returns {string | null}
+ */
+export function manifestFor(mod) {
+  if (updateSource(mod?.manifest)) return String(mod.manifest).trim();
+  const m = typeof mod?.url === "string" ? GH_REPO.exec(mod.url.trim()) : null;
+  return m ? `https://github.com/${m[1]}/${m[2]}/releases/latest/download/module.json` : null;
+}
+/** The GitHub repository "owner/repo" of a module (from its manifest, else its project URL), or null. @param {{ manifest?: string | null, url?: string | null }} mod */
+export function repoOf(mod) {
+  const src = updateSource(manifestFor(mod));
+  return src?.kind === "github" ? src.repo : null;
+}
+
 /** How long answers are kept: a good answer for 6 hours, a failure for 15 minutes (so a flaky connection is tried again soon). */
 export const CACHE_OK_MS = 6 * 60 * 60 * 1000;
 export const CACHE_FAIL_MS = 15 * 60 * 1000;
@@ -77,7 +95,7 @@ export function withTimeout(p, ms, abort) {
  */
 export async function checkUpdate(mod, { fetch, cache = null, timeoutMs = TIMEOUT_MS, force = false } = {}) {
   const installed = mod?.version ?? null;
-  const src = updateSource(mod?.manifest);
+  const src = updateSource(manifestFor(mod));
   if (!src) return { status: "unknown", installed, latest: null, error: "no manifest URL to check", source: null, cached: false };
   const key = `${mod.id}|${src.url}`;
   if (!force && cache) { const hit = cache.get(key); if (hit) return { ...hit, installed, ...verdict(installed, hit.latest, hit), cached: true }; }
@@ -108,7 +126,7 @@ function verdict(installed, latest, r) {
 export function updateText(r) {
   if (!r) return "Not checked.";
   switch (r.status) {
-    case "update": return `Update available: ${r.latest}.`;
+    case "update": return `Update available: ${r.installed ?? "?"} → ${r.latest}.`;
     case "current": return "Up to date.";
     case "ahead": return `Newer than the latest release (${r.latest}).`;
     case "error": return `Couldn't check for updates (${r.error}).`;

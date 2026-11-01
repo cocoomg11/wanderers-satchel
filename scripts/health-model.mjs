@@ -47,8 +47,30 @@ export function healthTimeout({ first = true, lastMs = null, own = null } = {}) 
   return clamp(Math.max(BASE_MS, lastMs * 3));
 }
 
+/**
+ * A line's fix action, or null. Understood: a function (label "Fix"); { label?, run, confirm? } (run a function); { label?, action,
+ * confirm? } or a plain action id (looked up in the registration's `fixes` when pressed). Labels and confirm texts are plain text.
+ * @param {any} f
+ * @returns {{ label: string, run?: Function, action?: string, confirm?: string } | null}
+ */
+export function readFix(f) {
+  const id = (/** @type {unknown} */ v) => typeof v === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(v) ? v : null;
+  const label = (/** @type {unknown} */ v) => typeof v === "string" && plain(v) ? plain(v).slice(0, 60) : "Fix";
+  if (typeof f === "function") return { label: "Fix", run: f };
+  if (id(f)) return { label: "Fix", action: /** @type {string} */ (f) };
+  if (!f || typeof f !== "object") return null;
+  const confirm = typeof f.confirm === "string" && plain(f.confirm) ? { confirm: plain(f.confirm).slice(0, 500) } : {};
+  if (typeof f.run === "function") return { label: label(f.label), run: f.run, ...confirm };
+  if (id(f.action)) return { label: label(f.label), action: f.action, ...confirm };
+  return null;
+}
+
 /** @param {any} l */
-const line = l => typeof l === "string" ? { level: "info", text: plain(l) } : { level: level(l?.level ?? l?.status), text: plain(l?.text ?? l?.message ?? l?.label ?? "") };
+const line = l => {
+  if (typeof l === "string") return { level: "info", text: plain(l) };
+  const fix = readFix(l?.fix);
+  return { level: level(l?.level ?? l?.status), text: plain(l?.text ?? l?.message ?? l?.label ?? ""), ...(fix ? { fix } : {}) };
+};
 
 /**
  * Whatever a module's health() returned → [{ title, lines }]. Understood: an array of sections ({ title, lines }), one section, a
@@ -60,16 +82,36 @@ const line = l => typeof l === "string" ? { level: "info", text: plain(l) } : { 
 export function normalizeReport(r) {
   if (r === undefined || r === null) return [{ title: "", lines: [{ level: "warn", text: "The check returned nothing." }] }];
   const sec = (/** @type {any} */ s) => ({ title: plain(s?.title ?? s?.name ?? ""), lines: (Array.isArray(s?.lines) ? s.lines : []).map(line).filter(l => l.text) });
+  /** @type {{ title: string, lines: any[] }[]} */
+  let out = [{ title: "", lines: [{ level: "info", text: "The check ran, but its result isn't in a form Wanderer's Satchel can read." }] }];
   if (Array.isArray(r)) {
-    if (r.every(x => x && typeof x === "object" && Array.isArray(x.lines))) return r.map(sec);
-    return [{ title: "", lines: r.map(line).filter(l => l.text) }];
-  }
-  if (typeof r === "object") {
+    if (r.every(x => x && typeof x === "object" && Array.isArray(x.lines))) out = r.map(sec);
+    else out = [{ title: "", lines: r.map(line).filter(l => l.text) }];
+  } else if (typeof r === "object") {
     if (Array.isArray(r.sections)) return normalizeReport(r.sections);
     if (Array.isArray(r.report)) return normalizeReport(r.report);
-    if (Array.isArray(r.lines)) return [sec(r)];
+    if (Array.isArray(r.lines)) out = [sec(r)];
   }
-  return [{ title: "", lines: [{ level: "info", text: "The check ran, but its result isn't in a form Wanderer's Satchel can read." }] }];
+  return keyFixes(out);
+}
+
+/**
+ * Gives every line with a fix a key ("section:line", from its place in the full report), so a Fix button still finds its line
+ * when the filter hides others. Returns the same sections.
+ * @param {{ title: string, lines: any[] }[]} sections
+ */
+export function keyFixes(sections) {
+  sections.forEach((s, i) => s.lines.forEach((l, j) => { if (l.fix) l.fix.key = `${i}:${j}`; }));
+  return sections;
+}
+
+/**
+ * The fix of one line in a module's last result (null when gone): `group` is a groupHealth group, `key` the line's fix key.
+ * @param {any} group @param {string} key
+ */
+export function findFix(group, key) {
+  for (const s of group?.sections ?? []) for (const l of s.lines ?? []) if (l.fix?.key === key) return { line: l, fix: l.fix };
+  return null;
 }
 
 /** @param {{ lines: { level: string }[] }[]} sections */

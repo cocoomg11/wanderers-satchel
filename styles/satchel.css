@@ -118,3 +118,16 @@
 
 /* the Settings sidebar button */
 .ws-sidebar { gap: 0.35rem; margin-top: 0.5rem; }
+
+/* ---------------------------------------------------------------- 0.5.0: What's new, Fix buttons, backups */
+.ws-hub .ws-news-list { display: flex; flex-direction: column; gap: 10px; }
+.ws-hub .ws-news .wc-panel-head h3 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ws-hub .ws-news .wc-panel-head .wc-btn { flex: none; }
+.ws-hub .ws-news-scroll { max-height: 260px; overflow-y: auto; }
+.ws-hub .ws-news-version + .ws-news-version { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--wc-line); }
+.ws-hub .ws-news-version > h4 { margin: 0 0 4px; border: none; font-size: var(--font-size-14, 0.875rem); }
+.ws-hub .ws-news-body h4, .ws-hub .ws-news-body h5 { margin: 0.5em 0 0.2em; border: none; font-size: var(--font-size-13, 0.8125rem); color: var(--wc-text-2); }
+.ws-hub .ws-news-body p, .ws-hub .ws-news-body ul { margin: 0.2em 0; }
+.ws-hub .ws-news-body ul { padding-left: 1.3em; }
+.ws-hub .ws-fix { flex: none; margin-left: 8px; }
+.ws-hub .ws-actions-cell { width: 1%; white-space: nowrap; }

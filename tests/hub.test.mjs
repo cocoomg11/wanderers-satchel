@@ -68,7 +68,7 @@ test("healthIndex / dotOf / healthBadge", () => {
 
 test("updateView: banner only for an update; ahead and errors are one muted line", () => {
   assert.equal(HM.updateView({ status: "update", latest: "2.0.0", installed: "1.0.0" }).banner, true);
-  assert.equal(HM.updateView({ status: "update", latest: "2.0.0", installed: "1.0.0" }).text, "2.0.0 available");
+  assert.equal(HM.updateView({ status: "update", latest: "2.0.0", installed: "1.0.0" }).text, "Update available 1.0.0 → 2.0.0");
   assert.equal(HM.updateView({ status: "ahead", latest: "1.0.0" }).banner, false);
   assert.deepEqual([HM.updateView({ status: "error", error: "x" }).text, HM.updateView({ status: "error", error: "x" }).level], ["Couldn't check", "off"]);
   assert.equal(HM.updateView(null).level, "pending");
@@ -94,7 +94,8 @@ test("navModel: dots, issue counts, inactive, tools by feature", () => {
   const h = idx({ a: ran([{ level: "warn", text: "y" }, { level: "bad", text: "z" }]) });
   const n = HM.navModel({ items, health: h, features: {}, version: "0.3.0", page: "module:a" });
   assert.deepEqual(n.modules.map(m => [m.page, m.dot, m.issues, m.issueLevel, m.active]), [["module:a", "bad", 2, "bad", true], ["module:b", "off", 0, "warn", false]]);
-  assert.deepEqual(n.tools.map(t => t.page), ["health", "transfer", "maintenance"]);
+  assert.deepEqual(n.tools.map(t => t.page), ["health", "transfer", "backups", "maintenance"]);
+  assert.deepEqual(HM.navModel({ items, health: h, features: { settingsBackup: false }, version: "", page: "overview" }).tools.map(t => t.page), ["health", "transfer", "maintenance"]);
   assert.deepEqual(HM.navModel({ items, health: h, features: { combinedHealth: false, sharedSettings: false }, version: "", page: "overview" }).tools.map(t => t.page), ["maintenance"]);
 });
 
@@ -105,7 +106,7 @@ test("overviewModel: stats, rows, tool cards", () => {
   assert.equal(ov.stats.active, 1); assert.equal(ov.stats.total, 2);
   assert.deepEqual([ov.stats.updates.level, ov.stats.updates.text], ["warn", "1 available"]);
   assert.deepEqual([ov.stats.health.level, ov.stats.health.text, ov.stats.health.hint], ["warn", "1 warning", "4 min ago · 0 problems"]);
-  assert.equal(ov.rows[0].page, "module:a"); assert.equal(ov.rows[0].update.text, "1.1.0 available"); assert.equal(ov.rows[1].health.text, "Not active");
+  assert.equal(ov.rows[0].page, "module:a"); assert.equal(ov.rows[0].update.text, "Update available 1.0.0 → 1.1.0"); assert.equal(ov.rows[1].health.text, "Not active");
   assert.deepEqual(ov.tools.debug, { state: "off", count: 1 });
   const none = HM.overviewModel({ items, updates: new Map(), health: new Map(), features: { updateCheck: false, debugAll: false, sharedSettings: false }, debug: null, now: 0 });
   assert.equal(none.stats.updates.text, "Check off"); assert.equal(none.stats.health.text, "Not run yet");

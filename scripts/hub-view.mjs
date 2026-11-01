@@ -9,6 +9,7 @@ import { esc, plural } from "./const.mjs";
 import { UI_CLASSES, TONES, tone, icon as coreIcon, badge as coreBadge, dot, statusLine, navItem } from "../vendor/wanderers-core/index.mjs";
 import { preview } from "./settings-model.mjs";
 import { filterChips, applyFilter, hiddenText } from "./filter-model.mjs";
+import { markdownHtml } from "./notes-model.mjs";
 
 /** The root classes for markup outside a Satchel window (the chat card). */
 export const ROOT = UI_CLASSES.join(" ");
@@ -51,7 +52,8 @@ const pageHead = (title, actions = "") => `<header class="wc-pagehead"><div clas
 /**
  * The overview page.
  * @param {ReturnType<typeof import("./hub-model.mjs").overviewModel>} ov
- * @param {{ updateCheck: boolean, combinedHealth: boolean, id: string }} o
+ * @param {{ updateCheck: boolean, combinedHealth: boolean, id: string, checkedHint?: string, whatsNew?: string, selfUpdate?: any }} o
+ *   whatsNew: the "What's new" cards (whatsNewHtml), shown above the tiles; selfUpdate: the Satchel's own update result
  */
 export function overviewHtml(ov, o) {
   const s = ov.stats;
@@ -72,16 +74,18 @@ export function overviewHtml(ov, o) {
   const tools = [
     t.transfer ? `<div class="ws-tool"><h3><i class="fa-solid fa-right-left" aria-hidden="true"></i>Settings transfer</h3><p>One file with every module's settings. You see a preview before anything is written.</p><div class="wc-row">${button("export", "Export", { icon: "fa-solid fa-file-export", small: true })}${button("pickImport", "Import…", { icon: "fa-solid fa-file-import", small: true })}</div></div>` : "",
     t.debug ? `<div class="ws-tool"><h3><i class="fa-solid fa-terminal" aria-hidden="true"></i>Debug logging</h3><p>Turns each module's own debug setting on or off. ${t.debug.count} ${t.debug.count === 1 ? "module has" : "modules have"} one.</p><label class="ws-check"><input type="checkbox" data-change="debugAll" ${t.debug.state === "on" ? "checked" : ""}> On for all <span class="wc-hint">· now ${t.debug.state === "mixed" ? "some on" : esc(t.debug.state)}</span></label></div>` : "",
+    t.backups ? `<div class="ws-tool"><h3><i class="fa-solid fa-box-archive" aria-hidden="true"></i>Settings backups</h3><p>${esc(t.backups.text)}</p><div class="wc-row">${button("backupNow", "Back up now", { icon: "fa-solid fa-box-archive", small: true })}${button("backups", "Backups…", { small: true })}</div></div>` : "",
     `<div class="ws-tool"><h3><i class="fa-solid fa-broom" aria-hidden="true"></i>Maintenance</h3><p>Remove what the Satchel stored: chat cards, cached update answers, its settings.</p><div>${button("nav", "Remove Satchel data…", { small: true, data: { page: "maintenance" } })}</div></div>`
   ].join("");
   const head = pageHead("Overview", [
-    o.updateCheck ? button("recheckUpdates", "Check for updates", { icon: "fa-solid fa-rotate" }) : "",
+    o.updateCheck ? button("recheckUpdates", "Check now", { icon: "fa-solid fa-rotate", title: o.checkedHint ? `Check for updates now (${o.checkedHint})` : "Check for updates now" }) : "",
     o.combinedHealth ? button("checkAll", "Check everything", { icon: "fa-solid fa-stethoscope", primary: true }) : ""
   ].join(""));
-  return `${head}
+  const self = o.updateCheck && o.selfUpdate?.status === "update" ? `<div class="wc-banner wc-warn" role="status"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i><span class="wc-banner-text"><strong>Wanderer's Satchel: update available <code>${esc(o.selfUpdate.installed ?? "?")}</code> → <code>${esc(o.selfUpdate.latest)}</code></strong> <span class="wc-hint">· update it in Foundry's Setup screen (Add-on Modules › Update).</span></span></div>` : "";
+  return `${head}${self}${o.whatsNew ?? ""}
     <div class="wc-stats">
       ${stat("Modules", `${s.active} <span class="wc-hint">of ${s.total} active</span>`)}
-      ${stat("Updates", statLevel(s.updates), s.updates.hint)}
+      ${stat("Updates", statLevel(s.updates), [s.updates.hint, o.checkedHint ?? ""].filter(Boolean).join(" · "))}
       ${stat("Last health check", statLevel(s.health), s.health.hint)}
     </div>
     ${table}
@@ -93,11 +97,11 @@ export function overviewHtml(ov, o) {
  * One module's page.
  * @param {ReturnType<typeof import("./hub-model.mjs").moduleModel>} m
  */
-export function moduleHtml(m, { filter = new Set() } = {}) {
+export function moduleHtml(m, { filter = new Set(), fixes = false, news = "" } = {}) {
   const head = `<header class="wc-pagehead"><div class="wc-pagehead-title"><h2>${esc(m.title)}</h2><div class="wc-pagehead-meta"><code>${esc(m.id)}${m.version ? ` · ${esc(m.version)}` : ""}</code>${m.badges.map((/** @type {any} */ b) => badge(b.level, b.text, { title: b.title })).join("")}</div></div>
     ${button("panel", "Open control panel", { icon: "fa-solid fa-sliders", primary: true, data: { id: m.id }, disabled: !m.canPanel, title: m.canPanel ? "" : "The module isn't active in this world." })}</header>`;
   const u = m.update;
-  const upd = u.banner ? `<div class="wc-banner wc-warn" role="status"><i class="${esc(u.icon)}" aria-hidden="true"></i><span class="wc-banner-text"><strong>Update available: <code>${esc(u.text.replace(/ available$/, ""))}</code></strong> <span class="wc-hint">· ${esc(u.title.toLowerCase())}</span></span>${m.links.some((/** @type {any} */ l) => l.act === "changelog") ? button("changelog", "What's new", { small: true, data: { id: m.id } }) : ""}</div>`
+  const upd = u.banner ? `<div class="wc-banner wc-warn" role="status"><i class="${esc(u.icon)}" aria-hidden="true"></i><span class="wc-banner-text"><strong>Update available <code>${esc(u.from)}</code> → <code>${esc(u.to)}</code></strong> <span class="wc-hint">· ${esc(u.title)}</span></span>${m.links.some((/** @type {any} */ l) => l.act === "changelog") ? button("changelog", "Changelog", { small: true, data: { id: m.id } }) : ""}${m.canBackup ? button("backupNow", "Back up settings", { small: true, icon: "fa-solid fa-box-archive" }) : ""}</div>`
     : m.installed && u.level !== "ok" ? `<p class="ws-muted-line wc-${tone(u.level)}"${u.title ? ` title="${esc(u.title)}"` : ""}><i class="${esc(u.icon)}" aria-hidden="true"></i> ${esc(u.text)}</p>` : "";
   const h = m.health;
   const panel = (/** @type {string} */ title, /** @type {string} */ body, headExtra = "", bodyCls = "") => `<section class="wc-panel" aria-label="${esc(title)}"><header class="wc-panel-head"><h3>${esc(title)}</h3>${headExtra}</header><div class="wc-panel-body${bodyCls}">${body}</div></section>`;
@@ -107,7 +111,7 @@ export function moduleHtml(m, { filter = new Set() } = {}) {
     else if (!h.group) healthBody = `<p class="wc-hint">Not checked since the page loaded. <em>Run check</em> runs this module's own check.</p>`;
     else {
       const one = { groups: [h.group] }; const f = applyFilter(one, filter);
-      const lines = f.groups.length ? `${h.group.note && !f.on ? `<p class="wc-hint">${esc(h.group.note)}</p>` : ""}${groupSections(f.groups[0])}` : `<p class="wc-hint">No lines match the filter.</p>`;
+      const lines = f.groups.length ? `${h.group.note && !f.on ? `<p class="wc-hint">${esc(h.group.note)}</p>` : ""}${groupSections(f.groups[0], { fixes })}` : `<p class="wc-hint">No lines match the filter.</p>`;
       healthBody = `${filterBar(filterChips(one, filter), `${m.title} health lines`)}${lines}`;
     }
   }
@@ -118,11 +122,13 @@ export function moduleHtml(m, { filter = new Set() } = {}) {
   const links = m.links.length ? panel("Links", `<div class="wc-row">${m.links.map((/** @type {any} */ l) => button(l.act, l.label, { icon: l.icon, small: true, data: { id: m.id } })).join("")}</div>`) : "";
   const data = m.extras.length ? panel("Module data", `<p class="wc-hint">Opens the module's own window.</p><div class="wc-row">${m.extras.map((/** @type {any} */ x) => button("extra", x.label, { icon: x.icon, small: true, data: { id: m.id, i: String(x.i) } })).join("")}</div>`) : "";
   const notes = m.notes.length ? `<div class="wc-hint ws-notes">${m.notes.map((/** @type {string} */ n) => `<p>${esc(n)}</p>`).join("")}</div>` : "";
-  return `${head}${upd}${notes}<div class="wc-cols">${healthPanel || "<div></div>"}<div class="ws-side-panels">${satchel}${links}${data}</div></div>`;
+  return `${head}${upd}${news}${notes}<div class="wc-cols">${healthPanel || "<div></div>"}<div class="ws-side-panels">${satchel}${links}${data}</div></div>`;
 }
 
 /** A health group's sections (no group header). @param {any} g */
-export const groupSections = (/** @type {any} */ g) => g.sections.map((/** @type {any} */ s) => `${s.title ? `<h4>${esc(s.title)}</h4>` : ""}<ul class="wc-lines">${s.lines.map((/** @type {any} */ l) => statusLine(l.level, l.text)).join("")}</ul>`).join("");
+export const groupSections = (/** @type {any} */ g, { fixes = false } = {}) => g.sections.map((/** @type {any} */ s) => `${s.title ? `<h4>${esc(s.title)}</h4>` : ""}<ul class="wc-lines">${s.lines.map((/** @type {any} */ l) => statusLine(l.level, l.text, fixes && l.fix?.key ? { html: fixButton(g.id, l.fix) } : {})).join("")}</ul>`).join("");
+/** A health line's Fix button (the hub's `healthFix` action finds the line again by module id and key). @param {string} id @param {any} fix */
+export const fixButton = (id, fix) => button("healthFix", fix.label || "Fix", { icon: "fa-solid fa-screwdriver-wrench", small: true, cls: "ws-fix", data: { id, key: fix.key }, title: fix.confirm ? `${fix.label || "Fix"} (asks first)` : "" });
 
 /**
  * The filter chips: toggle buttons (`aria-pressed`) wired to the hub's `healthFilter` action. "All" clears the filter.
@@ -151,11 +157,12 @@ const groupHead = (/** @type {any} */ x) => {
  * (modules without one are hidden and counted). `card`: the whispered chat card (static badges, wrapped in the shared look's
  * root classes so it is styled outside any Satchel window).
  * @param {any} g the groupHealth result
- * @param {{ filter?: Set<string> | null, card?: boolean, summaryTitle?: string }} [o] filter: null for static badges
+ * @param {{ filter?: Set<string> | null, card?: boolean, summaryTitle?: string, fixes?: boolean }} [o] filter: null for static badges;
+ *   fixes: Fix buttons on lines that have one (the hub only; never on the chat card)
  */
-export function healthHtml(g, { filter = null, card = false, summaryTitle = "" } = {}) {
+export function healthHtml(g, { filter = null, card = false, summaryTitle = "", fixes = false } = {}) {
   const f = filter ? applyFilter(g, filter) : { groups: g.groups, hidden: 0, on: false };
-  const body = f.groups.map((/** @type {any} */ x) => `<section class="ws-health-group" aria-label="${esc(x.title)}">${groupHead(x)}${x.note ? `<p class="wc-hint">${esc(x.note)}</p>` : ""}${groupSections(x)}</section>`).join("");
+  const body = f.groups.map((/** @type {any} */ x) => `<section class="ws-health-group" aria-label="${esc(x.title)}">${groupHead(x)}${x.note ? `<p class="wc-hint">${esc(x.note)}</p>` : ""}${groupSections(x, { fixes: fixes && !card })}</section>`).join("");
   const summary = filter
     ? `<div class="ws-summary"${summaryTitle ? ` title="${esc(summaryTitle)}"` : ""}><span class="ws-summary-text">${plural(g.summary.modules, "module")}</span>${filterBar(filterChips(g, filter), "health lines")}</div>`
     : `<p class="ws-summary"${summaryTitle ? ` title="${esc(summaryTitle)}"` : ""}>${summaryHtml(g.summary)}</p>`;
@@ -215,10 +222,41 @@ export function maintenanceHtml(counts, categories, word) {
   return `${pageHead("Maintenance")}<section class="wc-panel ws-pad"><form class="ws-cleanup" data-part="cleanup" autocomplete="off">
     <h3><i class="fa-solid fa-broom" aria-hidden="true"></i> Remove Satchel data</h3>
     <p>Removes what the Satchel stored. The counts are what would go now (a dry run); nothing changes until you confirm. Other modules' settings and data are never touched, including debug settings the <em>Debug logging for all</em> switch turned on (turn them off on the overview first if you want).</p>
-    ${categories.map(([k, label]) => `<div class="form-group"><label class="ws-check wc-grow"><input type="checkbox" name="${esc(k)}" ${k === "settings" ? "" : "checked"}> ${esc(label)}</label>${badge(counts[k] ? "info" : "off", String(counts[k] ?? 0), { title: "Would be removed now" })}</div>`).join("")}
+    ${categories.map(([k, label]) => `<div class="form-group"><label class="ws-check wc-grow"><input type="checkbox" name="${esc(k)}" ${k === "settings" || k === "store" ? "" : "checked"}> ${esc(label)}</label>${badge(counts[k] ? "info" : "off", String(counts[k] ?? 0), { title: "Would be removed now" })}</div>`).join("")}
     <p class="wc-hint">Also left behind, documented in the README: the key binding (if you changed it, Foundry keeps it in its own key binding settings).</p>
     <div class="form-group"><label for="ws-cleanup-confirm">Type <strong>${esc(word)}</strong> to confirm</label><div class="form-fields"><input type="text" id="ws-cleanup-confirm" name="confirm" autocomplete="off"></div></div>
     <p class="wc-banner wc-bad" data-part="cleanup-error" role="alert" hidden></p>
     <footer class="wc-row wc-end">${button("removeData", "Remove", { icon: "fa-solid fa-broom", danger: true })}</footer>
   </form></section>`;
+}
+
+/**
+ * The "What's new" cards (Overview and the module's own page): per module its release notes for the versions since a GM last saw
+ * it, as safe HTML (notes-model markdownHtml), with Dismiss. Empty string when there are none.
+ * @param {ReturnType<typeof import("./hub-model.mjs").whatsNewModel>} list
+ */
+export function whatsNewHtml(list) {
+  if (!list.length) return "";
+  return `<div class="ws-news-list">${list.map(n => {
+    const range = n.from ? `<code>${esc(n.from)}</code> → <code>${esc(n.to)}</code>` : `<code>${esc(n.to)}</code>`;
+    const body = n.state === "loading" ? `<p class="wc-hint">${icon("pending")}Reading the release notes…</p>`
+      : n.state === "error" ? `<p class="wc-hint">The release notes couldn't be read (${esc(n.error ?? "unknown error")}).${n.changelog ? " The Changelog button opens them." : ""}</p>`
+        : !n.notes.length ? `<p class="wc-hint">No release notes for ${n.from ? "these versions" : "this version"}.</p>`
+          : n.notes.map((/** @type {any} */ x) => `<section class="ws-news-version"><h4>${esc(x.title && x.title !== x.version ? x.title : x.version)}</h4><div class="ws-news-body">${markdownHtml(x.body) || `<p class="wc-hint">(no notes)</p>`}</div></section>`).join("");
+    return `<section class="wc-panel ws-news" aria-label="What's new in ${esc(n.title)}"><header class="wc-panel-head"><h3><i class="fa-solid fa-gift" aria-hidden="true"></i> What's new in ${esc(n.title)} <span class="wc-hint">${range}</span></h3><span class="wc-grow"></span>${n.changelog ? button("changelog", "Changelog", { small: true, data: { id: n.id } }) : ""}${button("dismissNews", "Dismiss", { small: true, icon: "fa-solid fa-check", data: { id: n.id } })}</header><div class="wc-panel-body ws-news-scroll">${body}</div></section>`;
+  }).join("")}</div>`;
+}
+
+/**
+ * The Settings backups page: the list (newest first) with Restore (opens the import preview) and Delete, and Back up now.
+ * @param {ReturnType<typeof import("./hub-model.mjs").backupsModel>} list @param {{ error?: string | null, busy?: boolean }} [o]
+ */
+export function backupsHtml(list, { error = null, busy = false } = {}) {
+  const rows = list.map(b => `<tr><th scope="row">${esc(b.when)}<div class="wc-hint">${esc(b.ago)}</div></th><td>${esc(b.text)}<div class="wc-hint">${esc(b.versions)}</div></td><td class="ws-actions-cell"><div class="wc-row wc-end">${button("restoreBackup", "Restore…", { icon: "fa-solid fa-clock-rotate-left", small: true, data: { id: b.id }, title: "Opens the import preview: nothing is written until you confirm there." })}${button("deleteBackup", "Delete", { icon: "fa-solid fa-trash", small: true, data: { id: b.id } })}</div></td></tr>`).join("");
+  const table = list.length ? `<div class="wc-table-box"><table class="wc-table ws-wide" aria-label="Settings backups"><thead><tr><th scope="col">Taken</th><th scope="col">What</th><th scope="col"><span class="wc-sr">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<p class="wc-panel ws-pad">No backups yet.</p>`;
+  const err = error ? `<div class="wc-alert wc-bad" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span class="wc-alert-title">Backup not taken.</span><p>${esc(error)}</p></div>` : "";
+  return `${pageHead("Settings backups", button("backupNow", "Back up now", { icon: "fa-solid fa-box-archive", primary: true, disabled: busy }))}
+    <p class="wc-hint">The settings of every active module in the Satchel (the same file as Settings transfer › Export), kept in a GM-only journal in this world. The last 5 are kept. A backup is taken when the update check finds new versions, on the first load after a module's version changed, and when you press Back up now. <em>Restore…</em> opens the import preview with that backup: you tick what goes back.</p>
+    ${err}${table}`;
 }

@@ -20,7 +20,7 @@ test("adapters: the four known modules, none provisional, debug settings named",
   assert.deepEqual(byId("ringmaker").debugSetting, { namespace: "ringmaker", key: "debugLog" });
   assert.equal(typeof byId("loot-ledger").health, "function");
   assert.ok(byId("wayfarers-toolkit").skipSettings.includes("lootHistoryData"));
-  assert.deepEqual(byId("red-book").skipSettings, ["openSession", "boardPins", "onlineHudPos", "migrations"]);
+  assert.deepEqual(byId("red-book").skipSettings, ["openSession", "boardPins", "onlineHudPos", "onlineHudCollapsed", "migrations", "nextSession"]);
 });
 
 test("toolkit adapter: healthReport preferred, old health() fallback, no removed features", async () => {

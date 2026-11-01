@@ -3,13 +3,14 @@
  * (sidebar, overview, module page, import preview). No Foundry calls; hub.mjs gathers the live data and hub-view.mjs turns these
  * models into HTML.
  *
- * Pages: "overview", "module:<id>", "health", "transfer", "maintenance".
+ * Pages: "overview", "module:<id>", "health", "transfer", "backups", "maintenance".
  */
 import { groupHealth } from "./health-model.mjs";
+import { REASONS } from "./store-model.mjs";
 
-export const TOOL_PAGES = ["health", "transfer", "maintenance"];
-/** Which feature switch a tool page needs (a page whose feature is off falls back to the overview). */
-const NEEDS = /** @type {Record<string, string>} */ ({ health: "combinedHealth", transfer: "sharedSettings" });
+export const TOOL_PAGES = ["health", "transfer", "backups", "maintenance"];
+/** Which feature switches a tool page needs (a page whose feature is off falls back to the overview). */
+const NEEDS = /** @type {Record<string, string[]>} */ ({ health: ["combinedHealth"], transfer: ["sharedSettings"], backups: ["settingsBackup", "sharedSettings"] });
 
 /**
  * "module:red-book" → { kind: "module", id: "red-book" }; "health" → { kind: "health" }; anything else → { kind: "overview" }.
@@ -33,8 +34,8 @@ export function resolvePage(page, { ids = [], features = {} } = {}) {
   const p = parsePage(page);
   if (p.kind === "module") return p.id && ids.includes(p.id) ? `module:${p.id}` : "overview";
   if (p.kind === "overview") return "overview";
-  const need = NEEDS[p.kind];
-  return need && features[need] === false ? "overview" : p.kind;
+  const need = NEEDS[p.kind] ?? [];
+  return need.some(f => features[f] === false) ? "overview" : p.kind;
 }
 
 /**
@@ -152,7 +153,7 @@ export function updateView(u, { enabled = true, installed = true } = {}) {
   if (!enabled) return { level: "off", icon: "fa-solid fa-power-off", text: "Update check off", title: "", banner: false };
   if (!u) return { level: "pending", icon: "fa-solid fa-spinner fa-spin", text: "Checking…", title: "", banner: false };
   switch (u.status) {
-    case "update": return { level: "warn", icon: "fa-solid fa-arrow-up-from-bracket", text: `${u.latest} available`, title: `Installed ${u.installed ?? "?"}`, banner: true };
+    case "update": return { level: "warn", icon: "fa-solid fa-arrow-up-from-bracket", text: `Update available ${u.installed ?? "?"} → ${u.latest}`, title: "Update it in Foundry's Setup screen (Add-on Modules › Update).", banner: true, from: u.installed ?? "?", to: u.latest };
     case "current": return { level: "ok", icon: "fa-solid fa-circle-check", text: "Up to date", title: "", banner: false };
     case "ahead": return { level: "info", icon: "fa-solid fa-circle-info", text: `Newer than the latest release (${u.latest})`, title: "", banner: false };
     case "error": return { level: "off", icon: "fa-solid fa-clock", text: "Couldn't check", title: String(u.error ?? ""), banner: false };
@@ -192,6 +193,7 @@ export function navModel({ items, health, features, version, page }) {
   const tools = [
     features.combinedHealth !== false ? { page: "health", label: "Health check", icon: "fa-solid fa-stethoscope" } : null,
     features.sharedSettings !== false ? { page: "transfer", label: "Settings transfer", icon: "fa-solid fa-right-left" } : null,
+    features.sharedSettings !== false && features.settingsBackup !== false ? { page: "backups", label: "Settings backups", icon: "fa-solid fa-box-archive" } : null,
     { page: "maintenance", label: "Maintenance", icon: "fa-solid fa-broom" }
   ].filter(x => !!x);
   return { modules, tools: /** @type {{ page: string, label: string, icon: string }[]} */ (tools), version, current: page };
@@ -199,9 +201,10 @@ export function navModel({ items, health, features, version, page }) {
 
 /**
  * The overview: { stats: { active, total, updates, health }, rows, tools }.
- * @param {{ items: any[], updates: Map<string, any>, health: Map<string, any>, features: Record<string, boolean>, debug: any, now: number }} d
+ * @param {{ items: any[], updates: Map<string, any>, health: Map<string, any>, features: Record<string, boolean>, debug: any, now: number, backups?: any[] | null }} d
+ *   backups: the stored settings backups (newest first), for the tool card
  */
-export function overviewModel({ items, updates, health, features, debug, now }) {
+export function overviewModel({ items, updates, health, features, debug, now, backups = null }) {
   const active = items.filter(m => m.active).length;
   const upd = features.updateCheck === false ? null : items.filter(m => m.installed !== false).map(m => updates.get(m.id) ?? null);
   const avail = upd ? upd.filter(u => u?.status === "update").length : 0;
@@ -228,6 +231,7 @@ export function overviewModel({ items, updates, health, features, debug, now }) 
   const tools = {
     transfer: features.sharedSettings !== false,
     debug: features.debugAll !== false && debug?.rows?.length ? { state: debug.state, count: debug.rows.length } : null,
+    backups: features.settingsBackup === false || features.sharedSettings === false ? null : { count: backups?.length ?? 0, text: backupsText(backups ?? [], now) },
     maintenance: true
   };
   return { stats: { active, total: items.length, updates: updStat, health: hStat }, rows, tools };
@@ -263,8 +267,52 @@ export function moduleModel({ item, entry, update, health, features, debug, extr
       item.can.bugs ? { act: "bugs", label: "Report issue", icon: "fa-solid fa-bug" } : null
     ].filter(Boolean),
     extras: item.active ? extras : [],
-    canPanel: !!item.can.panel
+    canPanel: !!item.can.panel,
+    canBackup: u.banner && features.settingsBackup !== false && features.sharedSettings !== false
   };
+}
+
+/** The backups card line: "3 kept · last 2 h ago" or "None yet". @param {any[]} list @param {number} now */
+export function backupsText(list, now) {
+  if (!list.length) return "None yet. One is taken when updates are found and on the first load after a version change.";
+  return `${list.length} of 5 kept · last ${timeAgoLong(list[0].at, now)}.`;
+}
+
+/** Like timeAgo, with days for older dates. @param {number} at @param {number} now */
+export function timeAgoLong(at, now) {
+  const h = (now - at) / 3600000;
+  return h >= 36 ? `${Math.round(h / 24)} days ago` : timeAgo(at, now);
+}
+
+/**
+ * The backups list: [{ id, when, text, versions: "a 1.0 · b 2.0", reason }]. `list`: the store's snapshots (newest first).
+ * `fmt(at)`: a date as people read it (passed in: the locale is the browser's).
+ * @param {any[]} list @param {number} now @param {(at: number) => string} [fmt]
+ */
+export function backupsModel(list, now, fmt = at => new Date(at).toISOString().replace("T", " ").slice(0, 16)) {
+  return (list ?? []).map(s => ({
+    id: s.id, when: fmt(s.at), ago: timeAgoLong(s.at, now), reason: s.reason,
+    text: snapshotLine(s),
+    versions: Object.entries(s.versions ?? {}).map(([k, v]) => `${k} ${v}`).join(" · ")
+  }));
+}
+const REASON_TEXT = /** @type {Record<string, string>} */ (REASONS);
+/** @param {any} s */
+const snapshotLine = s => { const n = Object.keys(s?.versions ?? {}).length; return `${REASON_TEXT[s?.reason] ?? REASON_TEXT.manual} · ${plural(n, "module")} · ${Math.max(1, Math.round((s?.size ?? 0) / 1024))} KB`; };
+
+/**
+ * The "What's new" cards: [{ id, title, from, to, state, notes, error, changelog }] for modules whose version changed since a GM
+ * last dismissed it. `notices`: Map id → { from, to, state: "loading" | "ok" | "error", notes: [{ version, title, body }], error };
+ * `items`: the card models (titles, changelog link). Modules no longer listed are left out.
+ * @param {Map<string, any>} notices @param {any[]} items
+ */
+export function whatsNewModel(notices, items) {
+  const out = [];
+  for (const [id, n] of notices) {
+    const item = items.find(x => x.id === id); if (!item) continue;
+    out.push({ id, title: item.title, from: n.from ?? null, to: n.to, state: n.state, notes: n.notes ?? [], error: n.error ?? null, changelog: !!item.docs?.changelog });
+  }
+  return out;
 }
 
 /** Tick key for row j of module i. */

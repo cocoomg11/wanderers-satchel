@@ -11,6 +11,7 @@ import * as Health from "./health.mjs";
 import * as SettingsIO from "./settings-io.mjs";
 import * as Cleanup from "./cleanup.mjs";
 import * as V from "./version-model.mjs";
+import * as Life from "./lifecycle.mjs";
 import { CORE_VERSION } from "../vendor/wanderers-core/index.mjs";
 
 let isReady = false; let resolveReady = (/** @type {any} */ _api) => { }; const readyPromise = new Promise(r => { resolveReady = r; });
@@ -26,8 +27,8 @@ export const API = {
   unregister: (/** @type {string} */ id) => Reg.unregister(id),
   /** The ids that registered themselves (adapters not included). */
   registrations: () => Reg.registrations(),
-  /** Every entry shown in the hub: [{ id, title, source, provisional, … }]. */
-  entries: () => Reg.entries().map((/** @type {any} */ e) => ({ id: e.id, title: e.title || e.id, source: e.source, provisional: !!e.provisional, health: typeof e.health === "function", exportSettings: typeof e.exportSettings === "function", importSettings: !!e.importSettings, debugSetting: e.debugSetting ?? null })),
+  /** GM: every entry shown in the hub: [{ id, title, source, provisional, … }]. A player gets undefined (0.5.0). */
+  entries: () => gmOnly(() => Reg.entries().map((/** @type {any} */ e) => ({ id: e.id, title: e.title || e.id, source: e.source, provisional: !!e.provisional, health: typeof e.health === "function", exportSettings: typeof e.exportSettings === "function", importSettings: !!e.importSettings, debugSetting: e.debugSetting ?? null, fixes: Object.keys(e.fixes ?? {}) }))),
   /** GM: opens the hub window. */
   open: () => gm() ? Hub.open() : undefined,
   /** GM: opens one module's control panel (its own window or settings). */
@@ -38,6 +39,14 @@ export const API = {
   get updates() { return F.on("updateCheck") ? { check: (/** @type {any} */ o = {}) => gmOnly(() => Hub.checkUpdates(o)), results: () => gmOnly(() => Hub.updateResults()), compare: V.compareVersions } : undefined; },
   /** Settings for all (GM): build() → bundle object, export() downloads it, import() opens the import window, read(text), apply(picks). */
   get settings() { return F.on("sharedSettings") ? { build: () => gmOnly(() => SettingsIO.build().then(r => r.bundle)), export: () => gmOnly(() => SettingsIO.exportFile()), import: () => gmOnly(() => Hub.openImport()), read: (/** @type {string} */ t) => gmOnly(() => SettingsIO.readText(t)), apply: (/** @type {any[]} */ p) => gmOnly(() => SettingsIO.apply(p)) } : undefined; },
+  /** Settings backups (GM): list() → [{ id, at, reason, versions, size }], take() → { ok, error }, restore(id) opens the import preview. */
+  get backups() {
+    return F.on("settingsBackup") && F.on("sharedSettings") ? {
+      list: () => gmOnly(() => Life.backups().map((/** @type {any} */ b) => ({ id: b.id, at: b.at, reason: b.reason, versions: { ...b.versions }, size: b.size }))),
+      take: () => gmOnly(() => Life.takeBackup("manual").then(r => ({ ok: r.ok, error: r.error }))),
+      restore: (/** @type {string} */ id) => gmOnly(() => Hub.openBackup(id))
+    } : undefined;
+  },
   /** Debug logging for all (GM): state() → { rows, state, missing }, set(on). */
   get debug() { return F.on("debugAll") ? { state: () => gmOnly(() => Hub.debugState()), set: (/** @type {boolean} */ on) => gmOnly(() => Hub.setDebugAll(on)) } : undefined; },
   /** Remove Satchel data (GM): plan(), remove(pick), open(). */
@@ -80,8 +89,14 @@ Hooks.once("init", () => {
   });
 });
 
+// Version-change backup: settings are read in setup (before other modules' ready hooks, where migrations usually run), written in
+// ready. See lifecycle.mjs for what this order can't cover.
+Hooks.once("setup", () => Life.onSetup());
+
 Hooks.once("ready", () => {
   isReady = true;
+  // After every module had its ready hook (registrations included): the backup write, What's new, the daily update check.
+  if (game.user?.isGM) setTimeout(() => { Life.onReady(o => Hub.checkUpdates(o)).catch(e => console.warn(`${ID} | ready`, e)); }, 0);
   Hooks.callAll(HOOKS.ready, API);
   resolveReady(API);
   console.log(`${ID} | ready (v${API.version}; core ${CORE_VERSION}; ${Reg.entries().length} modules: ${Reg.entries().map((/** @type {any} */ e) => `${e.id}${e.source === "registered" ? "*" : ""}`).join(", ") || "none"})`);

@@ -16,11 +16,14 @@ import * as Cleanup from "./cleanup.mjs";
 import * as HM from "./hub-model.mjs";
 import * as View from "./hub-view.mjs";
 import * as Prefs from "./prefs.mjs";
+import * as Life from "./lifecycle.mjs";
+import * as Self from "./self.mjs";
 import { toggleFilter } from "./filter-model.mjs";
 import { UI_CLASSES } from "../vendor/wanderers-core/index.mjs";
 import { log } from "./core.mjs";
 
 const { cache } = Cleanup;
+Self.bindUpdates(o => checkUpdates(o), () => new Map(updates));
 
 /** @type {Map<string, any>} */
 const updates = new Map(); // id → result (this page load); the session cache keeps them across reloads
@@ -33,11 +36,14 @@ export async function checkUpdates({ force = false } = {}) {
   if (checking && !force) return checking;
   const c = cache();
   checking = (async () => {
-    await Promise.all(Reg.entries().map(async e => {
+    await Promise.all([...Reg.entries(), { id: ID }].map(async e => {
       const m = Reg.moduleInfo(e.id); if (!m) return;
       updates.set(e.id, await V.checkUpdate(m, { fetch: globalThis.fetch?.bind(globalThis), cache: c, force }));
     }));
+    if (force || !Life.lastChecked()) Life.setChecked(Date.now());
     Reg.refreshWindows();
+    // Updates found that weren't backed up yet: one settings backup (never fails the check).
+    try { await Life.backupForUpdates(updates); } catch (e) { console.warn(`${ID} | backup for updates`, e); }
     return updates;
   })().finally(() => { checking = null; });
   return checking;
@@ -73,15 +79,21 @@ export async function setDebugAll(on) {
 
 // ---------------------------------------------------------------- the window
 const safe = (/** @type {() => unknown} */ fn) => { try { return !!fn(); } catch { return false; } };
-const features = () => ({ updateCheck: F.on("updateCheck"), combinedHealth: F.on("combinedHealth"), sharedSettings: F.on("sharedSettings"), debugAll: F.on("debugAll") });
+const features = () => ({ updateCheck: F.on("updateCheck"), combinedHealth: F.on("combinedHealth"), sharedSettings: F.on("sharedSettings"), debugAll: F.on("debugAll"), settingsBackup: F.on("settingsBackup"), whatsNew: F.on("whatsNew"), healthFixes: F.on("healthFixes") });
 const NO_DEBUG = { rows: [], state: "none", missing: [] };
 
 /** The live data every page draws from. */
 function snapshot() {
   const list = Reg.entries();
   const items = list.map((/** @type {any} */ e) => Reg.R.cardModel(e, Reg.moduleInfo(e.id), updates.get(e.id) ?? null));
-  return { list, items, health: HM.healthIndex(Health.latest()), features: features(), debug: F.on("debugAll") ? debugState() : NO_DEBUG, now: Date.now() };
+  const f = features();
+  return { list, items, health: HM.healthIndex(Health.latest()), features: f, debug: F.on("debugAll") ? debugState() : NO_DEBUG, now: Date.now(), backups: f.settingsBackup && f.sharedSettings ? Life.backups() : [], news: f.whatsNew ? HM.whatsNewModel(Life.news(), [...items, selfItem()]) : [] };
 }
+
+/** The Satchel's own card fields for its "What's new" notes. */
+const selfItem = () => ({ id: ID, title: TITLE, docs: Reg.R.docLinks(Reg.moduleInfo(ID) ?? { id: ID }) });
+/** "checked 2 h ago" for the last update check in this browser. @param {number} now */
+const checkedHint = now => { const at = Life.lastChecked(); return at ? `checked ${HM.timeAgoLong(at, now)}` : ""; };
 
 export class HubApp extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
@@ -91,7 +103,8 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     actions: {
       nav: HubApp.#onNav, panel: HubApp.#onPanel, docs: HubApp.#onLink, changelog: HubApp.#onLink, bugs: HubApp.#onLink, extra: HubApp.#onExtra,
       recheckUpdates: HubApp.#onRecheck, checkAll: HubApp.#onCheckAll, healthOne: HubApp.#onHealthOne, healthAgain: HubApp.#onCheckAll, healthPost: HubApp.#onPost, healthFilter: HubApp.#onFilter,
-      export: HubApp.#onExport, pickImport: HubApp.#onPickImport, doImport: HubApp.#onImport, cancelImport: HubApp.#onCancelImport, removeData: HubApp.#onRemove
+      export: HubApp.#onExport, pickImport: HubApp.#onPickImport, doImport: HubApp.#onImport, cancelImport: HubApp.#onCancelImport, removeData: HubApp.#onRemove,
+      healthFix: HubApp.#onFix, dismissNews: HubApp.#onDismiss, backupNow: HubApp.#onBackup, backups: HubApp.#onBackups, restoreBackup: HubApp.#onRestore, deleteBackup: HubApp.#onDeleteBackup
     }
   };
   /** Foundry's tab groups (Settings transfer: Export / Import). */
@@ -109,12 +122,14 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     this._untrack = Reg.trackWindow(this);
     this._unlisten = Health.onResult(() => this.refresh());
     /** @type {any} */ this._timer = null;
+    /** A backup is being taken (Back up now is disabled). */
+    this.busy = false;
     /** The health filter (Set of keys; empty = All), remembered per browser. */
     this.filter = Prefs.loadFilter();
   }
   async close(opts) { this._untrack?.(); this._unlisten?.(); clearTimeout(this._timer); return super.close(opts); }
 
-  /** Shows a page ("overview", "module:<id>", "health", "transfer", "maintenance"). @param {string} page */
+  /** Shows a page ("overview", "module:<id>", "health", "transfer", "backups", "maintenance"). @param {string} page */
   go(page) {
     const changed = this.router.go(page);
     if (this.router.page === "health" && !this.healthJob) this.healthJob = Health.start(null, () => this.refresh());
@@ -182,7 +197,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
   #pageTitle(d) {
     const p = HM.parsePage(this.router.page);
     if (p.kind === "module") return d.items.find((/** @type {any} */ x) => x.id === p.id)?.title ?? p.id ?? "";
-    return { overview: "Overview", health: "Health check", transfer: "Settings transfer", maintenance: "Maintenance" }[p.kind] ?? "";
+    return { overview: "Overview", health: "Health check", transfer: "Settings transfer", backups: "Settings backups", maintenance: "Maintenance" }[p.kind] ?? "";
   }
   /** @param {any} d */
   #page(d) {
@@ -192,12 +207,14 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
         const item = d.items.find((/** @type {any} */ x) => x.id === p.id); const entry = d.list.find((/** @type {any} */ x) => x.id === p.id);
         if (!item) return "";
         const extras = (entry.extraActions ?? []).map((/** @type {any} */ x, /** @type {number} */ i) => ({ i, label: x.label, icon: x.icon ?? "fa-solid fa-wand-magic", ok: x.available ? safe(x.available) : true })).filter((/** @type {any} */ x) => x.ok);
-        return View.moduleHtml(HM.moduleModel({ item, entry, update: updates.get(item.id) ?? null, health: d.health.get(item.id) ?? null, features: d.features, debug: d.debug, extras, now: d.now }), { filter: this.filter });
+        const news = View.whatsNewHtml(d.news.filter((/** @type {any} */ n) => n.id === item.id));
+        return View.moduleHtml(HM.moduleModel({ item, entry, update: updates.get(item.id) ?? null, health: d.health.get(item.id) ?? null, features: d.features, debug: d.debug, extras, now: d.now }), { filter: this.filter, fixes: d.features.healthFixes, news });
       }
       case "health": return View.healthPageHtml();
+      case "backups": return View.backupsHtml(HM.backupsModel(d.backups, d.now, (/** @type {number} */ at) => new Date(at).toLocaleString()), { error: Life.backupError(), busy: this.busy });
       case "transfer": return View.transferHtml({ tab: this.tabGroups.transfer ?? "export", error: this.imp.error, file: this.imp.file, result: this.imp.result, model: this.imp.result ? HM.importModel(this.imp.result, this.imp.ticks) : null });
       case "maintenance": return View.maintenanceHtml(Cleanup.counts(), /** @type {[string, string][]} */ (Cleanup.CATEGORIES), Cleanup.CONFIRM_WORD);
-      default: return View.overviewHtml(HM.overviewModel({ items: d.items, updates, health: d.health, features: d.features, debug: d.debug, now: d.now }), { updateCheck: d.features.updateCheck, combinedHealth: d.features.combinedHealth, id: ID });
+      default: return View.overviewHtml(HM.overviewModel({ items: d.items, updates, health: d.health, features: d.features, debug: d.debug, now: d.now, backups: d.backups }), { updateCheck: d.features.updateCheck, combinedHealth: d.features.combinedHealth, id: ID, checkedHint: checkedHint(d.now), whatsNew: View.whatsNewHtml(d.news), selfUpdate: updates.get(ID) ?? null });
     }
   }
   #fillHealth() {
@@ -206,7 +223,7 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     // Results come in while the GM may be on a filter chip: keep focus on the same chip across the redraw.
     const chip = /** @type {HTMLElement | null} */ (document.activeElement)?.closest?.("[data-action=healthFilter]") ? /** @type {HTMLElement} */ (document.activeElement).dataset.filter : null;
     const g = H.groupHealth(this.healthJob.results);
-    box.innerHTML = View.healthHtml(g, { filter: this.filter, summaryTitle: H.summaryText(g.summary) });
+    box.innerHTML = View.healthHtml(g, { filter: this.filter, summaryTitle: H.summaryText(g.summary), fixes: F.on("healthFixes") });
     if (chip) /** @type {HTMLElement | null} */ (box.querySelector(`[data-action="healthFilter"][data-filter="${CSS.escape(chip)}"]`))?.focus();
   }
 
@@ -340,6 +357,68 @@ export class HubApp extends foundry.applications.api.ApplicationV2 {
     this.render();
   }
 
+  /**
+   * A health line's Fix button: finds the line again in that module's latest result, runs its fix, then checks that module again
+   * so the line shows the new state.
+   * @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target
+   */
+  static async #onFix(_ev, target) {
+    if (!game.user?.isGM || !F.on("healthFixes")) return;
+    const id = target.dataset.id ?? ""; const found = Health.fixOf(id, target.dataset.key ?? "");
+    if (!found) return ui.notifications.warn(`${TITLE}: that line changed since it was drawn; run the check again.`);
+    /** @type {HTMLButtonElement} */ (target).disabled = true;
+    const r = await Self.runFix(Health.entryOf(id), found);
+    if (r.message) ui.notifications[r.ok ? "info" : "warn"](`${TITLE}: ${r.message}`);
+    if (r.ok && F.on("combinedHealth")) {
+      if (this.router.page === "health" && this.healthJob) {
+        // Re-check that module alone and put its answer into this page's report.
+        Health.start([id], (/** @type {number} */ _i, /** @type {any} */ res) => { const at = this.healthJob?.results.findIndex((/** @type {any} */ x) => x.id === id) ?? -1; if (at >= 0) this.healthJob.results[at] = res; this.#fillHealth(); });
+      } else Health.start([id]);
+    }
+    /** @type {HTMLButtonElement} */ (target).disabled = false; this.refresh();
+  }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static async #onDismiss(_ev, target) { if (game.user?.isGM) { await Life.dismiss(target.dataset.id ?? ""); this.refresh(); } }
+  /** @this {HubApp} */
+  static async #onBackup() {
+    if (!game.user?.isGM || this.busy) return;
+    this.busy = true; this.refresh();
+    const r = await Life.takeBackup("manual");
+    this.busy = false;
+    if (r.ok) ui.notifications.info(`${TITLE}: settings backed up.`); else ui.notifications.error(`${TITLE}: backup not taken (${r.error}).`);
+    if (this.router.page === "backups") this.render(); else this.refresh();
+  }
+  /** @this {HubApp} */
+  static #onBackups() { if (game.user?.isGM) this.go("backups"); }
+  /** Restore… on the backups page (see restore()). @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static async #onRestore(_ev, target) { if (game.user?.isGM) await this.restore(target.dataset.id ?? ""); }
+  /** @this {HubApp} @param {PointerEvent} _ev @param {HTMLElement} target */
+  static async #onDeleteBackup(_ev, target) {
+    if (!game.user?.isGM) return;
+    const yes = await foundry.applications.api.DialogV2.confirm({ window: { title: `${TITLE}: delete backup` }, content: "<p>Delete this settings backup? It can't be brought back.</p>", rejectClose: false }).catch(() => false);
+    if (!yes) return;
+    await Life.deleteBackup(target.dataset.id ?? ""); this.render();
+  }
+
+  /**
+   * Restore: a backup goes into the Settings transfer › Import preview, exactly like a picked file (nothing is written until the
+   * GM ticks and confirms there). Returns the readText result, or null.
+   * @param {string} id
+   */
+  async restore(id) {
+    if (!game.user?.isGM) return null;
+    const b = Life.backups().find((/** @type {any} */ x) => x.id === id);
+    if (!b) { ui.notifications.warn(`${TITLE}: that backup is gone.`); return null; }
+    const name = `Backup ${new Date(b.at).toLocaleString()}`;
+    const r = await SettingsIO.readText(b.text);
+    this.tabGroups.transfer = "import";
+    if (this.router.page !== "transfer") this.go("transfer");
+    if (!r.ok) return this.#fileError(name, `${r.error}.`);
+    this.imp = { file: { name, size: b.text.length }, result: r, ticks: HM.initialTicks(r), error: null };
+    await this.render({ force: true });
+    return r;
+  }
+
   /** Settings transfer → Import: pick a file, read it, show the preview here (file errors inline). */
   async pickImport() {
     if (!game.user?.isGM) return null;
@@ -377,3 +456,9 @@ export async function openImport() {
   return app?.pickImport?.() ?? null;
 }
 export const updateResults = () => new Map(updates);
+/** GM: opens the hub on the import preview of one settings backup (api.backups.restore(id)). @param {string} id */
+export async function openBackup(id) {
+  if (!game.user?.isGM) return ui.notifications.warn("GM only.");
+  const app = /** @type {HubApp} */ (await open("backups"));
+  return app?.restore?.(id) ?? null;
+}
