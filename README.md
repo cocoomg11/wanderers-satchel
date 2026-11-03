@@ -155,7 +155,7 @@ World settings (Game Settings › Wanderer's Satchel). The feature switches each
 
 Also **Debug logging** (world, off): writes health check timings, update checks and imports to the browser console. It isn't in Configure Settings; **Debug logging for all** in the hub switches it with the others.
 
-Per browser (not in Configure Settings): **Button in the token controls** (on; Maintenance › Opening the Satchel; 0.7.0), **Show module data folder** (off; on the Maintenance page) and the remembered window positions. The last two are never exported or imported, for the Satchel or for any other module.
+Per browser (not in Configure Settings): **Button in the token controls** (on; Maintenance › Opening the Satchel; 0.7.0), **Show module data folder** (off; on the Maintenance page) and the remembered window positions, and a bookkeeping flag (`keybindMigrated`, 0.7.1: set once a stale empty Open key binding was reset to Shift+G). The last two are never exported or imported, for the Satchel or for any other module.
 
 ## Troubleshooting
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.1 (2026-11-02)
+
+Fixes the default key Shift+G not applying in browsers that ran 0.6.
+
+### Fixed
+
+- **Shift+G now works after updating from 0.6.** 0.6 left an empty key binding stored in those browsers, which Foundry reads as "key cleared", so the new default never applied. Once per browser the empty binding is reset to Shift+G. A key you set yourself is never changed.
+
+### Under the hood
+
+- New hidden client setting `keybindMigrated` (left out of exports), `keybind-model.mjs` (pure decision) and tests in `tests/v071.test.mjs`.
+
+### Untested in Foundry
+
+- A browser that ran 0.6 (stored empty binding): after updating and reloading, Configure Controls shows Shift+G for *Open Wanderer's Satchel* and the key opens the hub; a second reload changes nothing.
+- A browser with a key you chose: it stays as it was. A fresh browser: Shift+G from the start, no warning in the console.
+- `game.keybindings.set` with the default on v14 (no error in the console).
+
 ## 0.7.0 (2026-11-01)
 
 Easier to use day to day: shorter release notes, a health check that opens on what needs a look, one place to open every tool, and a default key. Nothing to do after updating.

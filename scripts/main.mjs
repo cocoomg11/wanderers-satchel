@@ -15,6 +15,7 @@ import * as Life from "./lifecycle.mjs";
 import { CORE_VERSION } from "../vendor/wanderers-core/index.mjs";
 import { registerOpenKeybinding, registerWindowPlacement, hideDataFolder } from "../vendor/wanderers-core/foundry/index.mjs";
 import { S } from "./core.mjs";
+import { shouldResetKeybinding, storedBinding } from "./keybind-model.mjs";
 
 let isReady = false; let resolveReady = (/** @type {any} */ _api) => { }; const readyPromise = new Promise(r => { resolveReady = r; });
 /** GM check for API entries that do something: a player gets a notice and undefined. */
@@ -104,8 +105,20 @@ Hooks.once("init", () => {
 // ready. See lifecycle.mjs for what this order can't cover.
 Hooks.once("setup", () => Life.onSetup());
 
+/** 0.7.1: once per browser, a stored empty binding for our open action (left by 0.6) is reset to the default Shift+G. */
+async function repairKeybinding() {
+  try {
+    if (!game.user?.isGM) return;
+    const stored = storedBinding(game.settings.get("core", "keybindings"), `${ID}.open`);
+    if (!shouldResetKeybinding(stored, S.get("keybindMigrated") === true)) { if (S.get("keybindMigrated") !== true) await S.set("keybindMigrated", true); return; }
+    await game.keybindings.set(ID, "open", [{ key: OPEN_KEY.key, modifiers: [...OPEN_KEY.modifiers] }]);
+    await S.set("keybindMigrated", true);
+  } catch (e) { console.warn(`${ID} | key binding repair`, e); }
+}
+
 Hooks.once("ready", () => {
   isReady = true;
+  repairKeybinding();
   // After every module had its ready hook (registrations included): the backup write, What's new, the daily update check.
   if (game.user?.isGM) setTimeout(() => { Life.onReady(o => Hub.checkUpdates(o)).catch(e => console.warn(`${ID} | ready`, e)); }, 0);
   Hooks.callAll(HOOKS.ready, API);

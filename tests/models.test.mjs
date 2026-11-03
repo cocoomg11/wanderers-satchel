@@ -236,7 +236,7 @@ test("features and settings tables are valid for core (stable keys)", () => {
   assert.deepEqual(f.map(x => x.key), ["feature-updateCheck", "feature-dailyUpdateCheck", "feature-whatsNew", "feature-settingsBackup", "feature-combinedHealth", "feature-sharedSettings", "feature-healthFixes", "feature-debugAll", "feature-sceneButton"]);
   assert.ok(f.every(x => x.default === true));
   const rows = defineSettings(FM.SETTING_ROWS, { reserved: f.map(x => x.key) });
-  assert.deepEqual(rows.map(r => r.key), ["debugLog", "showSceneButton", "showModuleData"]);
+  assert.deepEqual(rows.map(r => r.key), ["debugLog", "showSceneButton", "keybindMigrated", "showModuleData"]);
   const show = rows.find(r => r.key === "showModuleData");
   assert.equal(show.client, true); assert.equal(show.default, false); assert.equal(typeof show.onChange, "function");
 });

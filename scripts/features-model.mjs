@@ -24,5 +24,7 @@ export const SETTING_ROWS = [
   // any other module's own `showModuleData` is. Per browser; switched on the hub's Maintenance page.
   // 0.7.0: the scene control button is also a per-browser choice (the world feature `sceneButton` still turns it off for all).
   { key: "showSceneButton", type: "bool", default: true, client: true, label: "Scene control button in this browser", hint: "Shows the Wanderer's Satchel button in the token controls in this browser (GM only). Needs the Scene control button feature.", onChange: () => { try { /** @type {any} */ (globalThis).ui?.controls?.render?.({ reset: true }); } catch { /* shows after the next reload */ } } },
+  // 0.7.1: set once this browser's stored empty key binding (written by 0.6) was reset to the default (keybind-model.mjs).
+  { key: "keybindMigrated", type: "bool", default: false, client: true, label: "Key binding repaired in this browser", hint: "Bookkeeping: set once the Open key binding was reset to its default in this browser." },
   { key: "showModuleData", type: "bool", default: false, client: true, label: "Show module data folder", hint: "Shows the \"Module data\" folder (the GM-only journals your modules keep) in the Journal sidebar, in this browser.", onChange: () => { /** @type {any} */ (globalThis).ui?.journal?.render?.(); } }
 ];

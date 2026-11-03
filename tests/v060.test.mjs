@@ -98,7 +98,7 @@ test("skip lists: core's client records are never exported or imported, for ever
   assert.deepEqual(M.CORE_RECORDS, ["showModuleData", "windowPlacement"]);
   assert.deepEqual(M.skipList({ skipSettings: ["a", "windowPlacement"] }), ["a", "windowPlacement", "showModuleData"]);
   assert.deepEqual(M.skipList(null), ["showModuleData", "windowPlacement"]);
-  assert.deepEqual(M.OWN_SKIP, ["showModuleData", "windowPlacement", "showSceneButton"]);
+  assert.deepEqual(M.OWN_SKIP, ["showModuleData", "windowPlacement", "showSceneButton", "keybindMigrated"]);
   const exp = M.buildModuleExport("x", [{ key: "a", scope: "world", value: 1 }, { key: "windowPlacement", scope: "client", value: {} }, { key: "showModuleData", scope: "client", value: true }], { skip: M.skipList({}) });
   assert.deepEqual(exp.world, { a: 1 }); assert.deepEqual(exp.client, {});
 });
