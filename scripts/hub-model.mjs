@@ -7,6 +7,7 @@
  */
 import { groupHealth } from "./health-model.mjs";
 import { REASONS } from "./store-model.mjs";
+import { familyOf } from "./family-model.mjs";
 
 export const TOOL_PAGES = ["health", "transfer", "backups", "maintenance"];
 /** Which feature switches a tool page needs (a page whose feature is off falls back to the overview). */
@@ -260,6 +261,7 @@ export function moduleModel({ item, entry, update, health, features, debug, extr
   };
   return {
     id: item.id, title: item.title, version: item.version ?? "", active: item.active, installed: item.installed,
+    description: familyOf(item.id)?.description ?? "",
     badges, update: u, debug: dbg, transfer, health: healthModel, notes: entry?.notes ?? [],
     links: [
       item.can.docs ? { act: "docs", label: "Docs", icon: "fa-solid fa-book" } : null,

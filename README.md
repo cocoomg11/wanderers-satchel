@@ -19,7 +19,7 @@ https://github.com/cocoomg11/wanderers-satchel/releases/latest/download/module.j
 
 ## The Wanderer's family
 
-Five free modules that work on their own and fit together. Each one switches on only what you use.
+Seven free modules that work on their own and fit together. Each one switches on only what you use.
 
 | Module | What it does |
 |---|---|
@@ -28,10 +28,12 @@ Five free modules that work on their own and fit together. Each one switches on 
 | [Wanderer's Satchel](https://github.com/cocoomg11/wanderers-satchel) | Optional hub: one window for the family, update check, combined health check, settings backup. |
 | [Ringmaker](https://github.com/cocoomg11/ringmaker) | Your own ring image for Foundry's dynamic token rings. Any game system. |
 | [Loot Ledger](https://github.com/cocoomg11/loot-ledger) | Priced, rollable loot pools and roll tables for D&D 5e, built from a classic-MMO item compendium. |
+| [Wanderer's Guild](https://github.com/cocoomg11/wanderers-guild) | Professions, crafting and gathering from tool proficiencies. |
+| [Wanderer's Path](https://github.com/cocoomg11/wanderers-path) | Customizable talent trees and spec boards. |
 
 They share one look that follows Foundry's light and dark themes. None of them needs the others.
 
-**Which modules the Satchel finds by itself.** Wanderer's Toolkit, Ringmaker and Loot Ledger are recognised as soon as they are installed. Red Book registers itself. Any other module can join through the [registration API](#public-api-and-hooks). Ringmaker, Loot Ledger and Red Book only answer GMs, and so do the Toolkit's panel and health check, so the Satchel calls them only on a GM's client.
+**Which modules the Satchel finds by itself.** Every module in the table is recognised as soon as it is installed (active or not). Red Book and Wanderer's Guild also register themselves, which replaces the built-in support with their own. The Overview lists the family modules that aren't installed under the module table, each with a one-line description, its manifest URL and a **Get it** link to its page (0.7.2). Any other module can join through the [registration API](#public-api-and-hooks). Ringmaker, Loot Ledger, Red Book and Wanderer's Guild only answer GMs, and so do the Toolkit's panel and health check, so the Satchel calls them only on a GM's client.
 
 ## Contents
 

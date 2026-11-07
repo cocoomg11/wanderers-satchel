@@ -18,6 +18,7 @@ import * as View from "./hub-view.mjs";
 import * as Prefs from "./prefs.mjs";
 import * as Life from "./lifecycle.mjs";
 import * as Self from "./self.mjs";
+import { missingMembers } from "./family-model.mjs";
 import { toggleFilter } from "./filter-model.mjs";
 import { UI_CLASSES } from "../vendor/wanderers-core/index.mjs";
 import { RememberedWindow, resetPlacement } from "../vendor/wanderers-core/foundry/index.mjs";
@@ -240,7 +241,7 @@ export class HubApp extends RememberedWindow(foundry.applications.api.Applicatio
       case "backups": return View.backupsHtml(HM.backupsModel(d.backups, d.now, (/** @type {number} */ at) => new Date(at).toLocaleString()), { error: Life.backupError(), busy: this.busy });
       case "transfer": return View.transferHtml({ tab: this.tabGroups.transfer ?? "export", error: this.imp.error, file: this.imp.file, result: this.imp.result, model: this.imp.result ? HM.importModel(this.imp.result, this.imp.ticks) : null });
       case "maintenance": return View.maintenanceHtml(Cleanup.counts(), /** @type {[string, string][]} */ (Cleanup.CATEGORIES), Cleanup.CONFIRM_WORD, { dataFolder: HM.dataFolderModel(dataFolderRows(), ID), browser: browserState() });
-      default: return View.overviewHtml(HM.overviewModel({ items: d.items, updates, health: d.health, features: d.features, debug: d.debug, now: d.now, backups: d.backups }), { updateCheck: d.features.updateCheck, combinedHealth: d.features.combinedHealth, id: ID, checkedHint: checkedHint(d.now), whatsNew: View.whatsNewHtml(d.news), selfUpdate: updates.get(ID) ?? null });
+      default: return View.overviewHtml(HM.overviewModel({ items: d.items, updates, health: d.health, features: d.features, debug: d.debug, now: d.now, backups: d.backups }), { updateCheck: d.features.updateCheck, combinedHealth: d.features.combinedHealth, id: ID, checkedHint: checkedHint(d.now), whatsNew: View.whatsNewHtml(d.news), selfUpdate: updates.get(ID) ?? null, family: View.familyHtml(missingMembers(game.modules.keys())) });
     }
   }
   #fillHealth() {

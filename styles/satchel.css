@@ -147,3 +147,9 @@
 /* 0.7.0: "Show all (N OK)" chip and the single "All N checks OK" line */
 .ws-window button.ws-filter.ws-show-all { margin-left: auto; }
 .ws-hub .ws-all-ok { margin: 4px 0; }
+
+/* 0.7.2: the family members not installed (Overview) and a module's one-line description (its page). */
+.ws-hub .ws-family caption { caption-side: top; text-align: left; padding: 8px 12px; }
+.ws-hub .ws-family-desc { display: block; }
+.ws-hub .ws-manifest { display: block; margin-top: 2px; font-size: var(--font-size-11, 0.6875rem); color: var(--wc-text-3); word-break: break-all; user-select: all; }
+.ws-hub .ws-about { margin: 0 0 10px; }

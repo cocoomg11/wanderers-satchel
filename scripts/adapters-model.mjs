@@ -16,7 +16,11 @@ export const SKIP = {
   "wayfarers-toolkit": ["lootHistoryData", "lastSeenVersion", "setupReminded", "wizardDone", "flightCache", "goldSnapshots", "pinsNotesShown", "bossLayout", "bossFramePos", "onlineHudPos", "paneWindow", ...CORE],
   ringmaker: [...CORE],
   "loot-ledger": [...CORE],
-  "red-book": ["openSession", "boardPins", "onlineHudPos", "onlineHudCollapsed", "migrations", "nextSession", ...CORE]
+  "red-book": ["openSession", "boardPins", "onlineHudPos", "onlineHudCollapsed", "migrations", "nextSession", ...CORE],
+  // 0.7.2: Wanderer's Guild's hidden records (its own registration passes the same list, from its settings table).
+  "wanderers-guild": ["professionList", "rankTable", "recipeBook", "craftRules", "gatherRules", "gatherReset", ...CORE],
+  // 0.7.2: Wanderer's Path (scaffold: no records yet besides core's).
+  "wanderers-path": [...CORE]
 };
 
 /**

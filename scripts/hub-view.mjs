@@ -52,8 +52,9 @@ const pageHead = (title, actions = "") => `<header class="wc-pagehead"><div clas
 /**
  * The overview page.
  * @param {ReturnType<typeof import("./hub-model.mjs").overviewModel>} ov
- * @param {{ updateCheck: boolean, combinedHealth: boolean, id: string, checkedHint?: string, whatsNew?: string, selfUpdate?: any }} o
- *   whatsNew: the "What's new" cards (whatsNewHtml), shown above the tiles; selfUpdate: the Satchel's own update result
+ * @param {{ updateCheck: boolean, combinedHealth: boolean, id: string, checkedHint?: string, whatsNew?: string, selfUpdate?: any, family?: string }} o
+ *   whatsNew: the "What's new" cards (whatsNewHtml), shown above the tiles; selfUpdate: the Satchel's own update result;
+ *   family: the family members not installed (familyHtml, 0.7.2), shown under the table
  */
 export function overviewHtml(ov, o) {
   const s = ov.stats;
@@ -90,8 +91,28 @@ export function overviewHtml(ov, o) {
       ${stat("Last health check", statLevel(s.health), s.health.hint)}
     </div>
     ${table}
+    ${o.family ?? ""}
     <div class="ws-tools">${tools}</div>
     <p class="wc-hint">Each module keeps its own settings and windows; the Satchel only opens them. Other modules can join with <code>game.modules.get("${esc(o.id)}").api.register({ id })</code>.</p>`;
+}
+
+/**
+ * The family members that aren't installed (0.7.2): one row each with its description, a Not installed badge and a Get it link
+ * (the module's GitHub page, new tab), plus its manifest URL to paste into Foundry's Install Module. Empty string when none.
+ * @param {{ id: string, title: string, description: string, url: string, manifest: string }[]} list
+ */
+export function familyHtml(list) {
+  if (!list?.length) return "";
+  const rows = list.map(m => `<tr class="ws-inactive">
+      <th scope="row"><span class="ws-name">${esc(m.title)}</span></th>
+      <td><span class="ws-family-desc">${esc(m.description)}</span><code class="ws-manifest" title="Manifest URL: paste it in Add-on Modules › Install Module">${esc(m.manifest)}</code></td>
+      <td>${badge("off", "Not installed")}</td>
+      <td class="ws-launch-cell"><a class="wc-btn wc-btn-sm" href="${esc(m.url)}" target="_blank" rel="noopener" aria-label="Get ${esc(m.title)} (opens its page)"><i class="fa-solid fa-download" aria-hidden="true"></i><span>Get it</span></a></td>
+    </tr>`).join("");
+  return `<div class="wc-table-box ws-family"><table class="wc-table ws-wide" aria-label="More Wanderer's modules">
+      <caption class="wc-hint">More Wanderer's modules, not installed. Install them from Foundry's Setup screen (Add-on Modules › Install Module) with the manifest URL.</caption>
+      <thead><tr><th scope="col">Module</th><th scope="col">What it does</th><th scope="col">State</th><th scope="col"><span class="wc-sr">Get it</span></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
 }
 
 /**
@@ -123,7 +144,8 @@ export function moduleHtml(m, { filter = new Set(), fixes = false, news = "" } =
   const links = m.links.length ? panel("Links", `<div class="wc-row">${m.links.map((/** @type {any} */ l) => button(l.act, l.label, { icon: l.icon, small: true, data: { id: m.id } })).join("")}</div>`) : "";
   const data = m.extras.length ? panel("Module data", `<p class="wc-hint">Opens the module's own window.</p><div class="wc-row">${m.extras.map((/** @type {any} */ x) => button("extra", x.label, { icon: x.icon, small: true, data: { id: m.id, i: String(x.i) } })).join("")}</div>`) : "";
   const notes = m.notes.length ? `<div class="wc-hint ws-notes">${m.notes.map((/** @type {string} */ n) => `<p>${esc(n)}</p>`).join("")}</div>` : "";
-  return `${head}${upd}${news}${notes}<div class="wc-cols">${healthPanel || "<div></div>"}<div class="ws-side-panels">${satchel}${links}${data}</div></div>`;
+  const about = m.description ? `<p class="wc-hint ws-about">${esc(m.description)}</p>` : "";
+  return `${head}${about}${upd}${news}${notes}<div class="wc-cols">${healthPanel || "<div></div>"}<div class="ws-side-panels">${satchel}${links}${data}</div></div>`;
 }
 
 /**

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.2 (2026-11-07)
+
+Wanderer's Guild and Wanderer's Path join the family. Nothing to do after updating.
+
+### Added
+
+- **Wanderer's Guild and Wanderer's Path are recognised.** Installed, they show in the sidebar and the Overview like the other modules, with their version, update check and health. Wanderer's Guild opens its *Professions setup* window from its **Open** button and runs its own health check; when it registers itself (Guild 0.3 and later) its registration is used instead. Wanderer's Path is new and has no health check or main window yet; its page says so until a version adds them.
+- **The family modules you don't have yet** are listed on the Overview under the module table: a one-line description, the manifest URL to paste into Foundry's Install Module, and a **Get it** link to the module's page.
+- **A one-line description** under the title on each family module's page.
+
+### Under the hood
+
+- New pure `family-model.mjs` (`FAMILY`, `familyOf`, `missingMembers`), adapters for `wanderers-guild` and `wanderers-path` (their `open` is a getter, so there is no Open button while the module has nothing to open), skip lists for both, `familyHtml` in `hub-view.mjs`, `moduleModel().description`. Tests in `tests/v072.test.mjs`.
+
+### Untested in Foundry
+
+- Overview with only some family modules installed: the *More Wanderer's modules* table lists exactly the others, **Get it** opens the module's GitHub page in a new tab, the manifest URL can be selected and copied; with all installed the table is gone. Both themes, and a narrow window (the table scrolls sideways in its box).
+- Wanderer's Guild 0.3.1 active: listed as *Registered*; **Professions setup** opens its setup window and **Settings** its Settings page; its health check runs from the module page and Check everything; Debug logging switch works. Guild installed but not active: listed, dimmed, *Not active*, no Open button.
+- Guild with its Professions feature off (registration's open returns false): **Professions setup** falls back to its settings menu or Configure Settings, no error.
+- Wanderer's Path 0.0.1 active: listed as *Built-in adapter*, no Open button, health shows *No health check of its own* (or dependencies only), **Settings** opens Configure Settings on its tab, Debug logging switch works; update check against its latest release (an error line until it has one).
+- Settings export / import with Guild and Path active: their hidden records (Guild's profession list, rank table, recipe book, craft and gather rules) are not in the file.
+- Each family module's page shows its one-line description; a module that registered from outside the family shows none.
+
 ## 0.7.1 (2026-11-02)
 
 Fixes the default key Shift+G not applying in browsers that ran 0.6.

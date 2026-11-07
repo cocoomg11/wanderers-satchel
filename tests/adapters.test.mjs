@@ -13,8 +13,8 @@ const fakeGame = (mods, { isGM = true, settings = {}, packs = [], journal = [], 
 });
 const byId = id => ADAPTERS.find(a => a.id === id);
 
-test("adapters: the four known modules, none provisional, debug settings named", () => {
-  assert.deepEqual(ADAPTERS.map(a => a.id), ["wayfarers-toolkit", "ringmaker", "loot-ledger", "red-book"]);
+test("adapters: the six known modules, none provisional, debug settings named", () => {
+  assert.deepEqual(ADAPTERS.map(a => a.id), ["wayfarers-toolkit", "ringmaker", "loot-ledger", "red-book", "wanderers-guild", "wanderers-path"]);
   assert.ok(ADAPTERS.every(a => !a.provisional));
   assert.deepEqual(byId("wayfarers-toolkit").debugSetting, { namespace: "wayfarers-toolkit", key: "debugLog" });
   assert.deepEqual(byId("ringmaker").debugSetting, { namespace: "ringmaker", key: "debugLog" });

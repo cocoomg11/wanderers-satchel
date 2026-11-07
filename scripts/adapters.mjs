@@ -4,7 +4,7 @@
  * adapter completely. Every function looks the module's api up when it is called, so a module that sets its api late (Red Book
  * sets it in its ready hook) still works.
  *
- * GM only: Ringmaker, Loot Ledger and Red Book gate their APIs to GMs, and so does the toolkit's panel and health check. `apiOf`
+ * GM only: Ringmaker, Loot Ledger, Red Book and Wanderer's Guild gate their APIs to GMs, and so does the toolkit's panel and health check. `apiOf`
  * returns null on a player's client, so nothing here ever calls another module's API there (and the Satchel's windows and API
  * entries are GM-only too).
  */
@@ -139,4 +139,46 @@ const redBook = {
   ]
 };
 
-export const ADAPTERS = [toolkit, ringmaker, lootLedger, redBook];
+/**
+ * Wanderer's Guild (0.7.2). Guild 0.3+ registers itself (on its ready, when the Satchel is active), which replaces this adapter; the
+ * adapter makes it show as a family member when it is installed but not active, or before it registered. api.health({ timeoutMs })
+ * (GM; core's report), api.setup(page) (a getter: undefined when its Professions feature is off), setting `debugLog`.
+ */
+const guild = {
+  id: "wanderers-guild",
+  title: "Wanderer's Guild",
+  openPanel: () => { const s = apiOf("wanderers-guild")?.setup; return typeof s === "function" ? s("settings") : false; },
+  // Its main window for a GM is the setup window (the Professions window needs a character), so not api.open(actor). A getter, read
+  // when the registry is built: no Open button when api.setup is missing (its Professions feature off) or on a player's client.
+  get open() { return typeof apiOf("wanderers-guild")?.setup === "function" ? () => apiOf("wanderers-guild")?.setup?.() : undefined; },
+  openLabel: "Professions setup",
+  health: async (/** @type {{ timeoutMs?: number }} */ opts = {}) => {
+    const api = apiOf("wanderers-guild"); if (!api) throw new Error("Wanderer's Guild's API isn't available");
+    if (typeof api.health !== "function") return null;
+    return api.health(typeof opts?.timeoutMs === "number" ? { timeoutMs: opts.timeoutMs } : {});
+  },
+  debugSetting: { namespace: "wanderers-guild", key: "debugLog" },
+  skipSettings: SKIP["wanderers-guild"]
+};
+
+/**
+ * Wanderer's Path (0.7.2; the module is a scaffold). Uses only what it may expose: api.healthReport / api.health and api.open when a
+ * later version has them; without them there is no check and no Open button (the page's Settings button opens Configure Settings).
+ */
+const path = {
+  id: "wanderers-path",
+  title: "Wanderer's Path",
+  // A getter, read when the registry is built: an Open button only once the module has api.open().
+  get open() { return typeof apiOf("wanderers-path")?.open === "function" ? () => apiOf("wanderers-path")?.open?.() : undefined; },
+  health: async (/** @type {{ timeoutMs?: number }} */ opts = {}) => {
+    const api = apiOf("wanderers-path"); if (!api) throw new Error("Wanderer's Path's API isn't available");
+    const o = typeof opts?.timeoutMs === "number" ? { timeoutMs: opts.timeoutMs } : {};
+    if (typeof api.healthReport === "function") return api.healthReport(o);
+    if (typeof api.health === "function") return api.health(o);
+    return null;
+  },
+  debugSetting: { namespace: "wanderers-path", key: "debugLog" },
+  skipSettings: SKIP["wanderers-path"]
+};
+
+export const ADAPTERS = [toolkit, ringmaker, lootLedger, redBook, guild, path];
