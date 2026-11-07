@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Under the hood: the Release workflow now has a read-only build job and a separate upload job (the only one that can write to the release), with top-level `permissions: contents: read` and every action pinned by commit SHA. Same tag check, version/URL setting and zip contents as before. No change to the module itself.
+
 ## 0.7.2 (2026-11-07)
 
 Wanderer's Guild and Wanderer's Path join the family. Nothing to do after updating.
